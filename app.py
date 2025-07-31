@@ -8,6 +8,7 @@ from psx import stocks
 import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import calendar # Import calendar for day name
 
 # --- Configuration ---
 STOCK_TICKER = "UBL"
@@ -407,14 +408,30 @@ if st.button("Run Analysis and Get Prediction"):
                 # The prediction date is the day AFTER the latest data point
                 predicted_date = date_of_latest_data + timedelta(days=1)
 
-                # Display prediction for the NEXT trading day in a table
-                st.subheader(f"Prediction for {predicted_date.date()}:")
-                prediction_summary_dict = {
-                    'Predicted Direction': [predicted_direction_tomorrow],
-                    'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage
-                }
-                prediction_df = pd.DataFrame(prediction_summary_dict)
-                st.dataframe(prediction_df)
+                # --- Display prediction for the NEXT trading day using st.columns ---
+                # Format the date for the title
+                # Get the day name (e.g., Friday)
+                day_name = calendar.day_name[predicted_date.weekday()]
+                # Get the day with suffix (e.g., 1st)
+                day_with_suffix = str(predicted_date.day) + ('th' if 11<=predicted_date.day<=13 else {1:'st', 2:'nd', 3:'rd'}.get(predicted_date.day%10, 'th'))
+                # Get the month name (e.g., August)
+                month_name = calendar.month_name[predicted_date.month]
+                # Format the full title
+                prediction_title = f"Prediction for {day_name}, {day_with_suffix} {month_name}, {predicted_date.year}"
+
+                st.subheader(prediction_title)
+
+                # Display prediction details using columns for alignment
+                pred_col1, pred_col2 = st.columns(2)
+
+                with pred_col1:
+                    st.markdown("<div style='text-align: center;'>**Predicted Direction**</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align: center;'>{predicted_direction_tomorrow}</div>", unsafe_allow_html=True)
+
+                with pred_col2:
+                    st.markdown("<div style='text-align: center;'>**Confidence Score**</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align: center;'>{confidence_score_tomorrow:.2%}</div>", unsafe_allow_html=True)
+
 
                 # 5. Store the new prediction
                 # Store the prediction for the NEXT day
@@ -459,29 +476,30 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
     # Display using st.columns for better layout control
-    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    # Use relative widths for columns to try and keep them from stretching unevenly
+    col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 1, 1, 1, 1, 1, 1.5]) # Adjusted widths
 
     with col1:
-        st.markdown("**LDCP**")
-        st.write(ldcp_str)
+        st.markdown("<div style='text-align: center;'>**LDCP**</div>", unsafe_allow_html=True)
+        st.write(f"<div style='text-align: center;'>{ldcp_str}</div>", unsafe_allow_html=True)
     with col2:
-        st.markdown("**Open**")
-        st.write(open_str)
+        st.markdown("<div style='text-align: center;'>**Open**</div>", unsafe_allow_html=True)
+        st.write(f"<div style='text-align: center;'>{open_str}</div>", unsafe_allow_html=True)
     with col3:
-        st.markdown("**High**")
-        st.write(high_str)
+        st.markdown("<div style='text-align: center;'>**High**</div>", unsafe_allow_html=True)
+        st.write(f"<div style='text-align: center;'>{high_str}</div>", unsafe_allow_html=True)
     with col4:
-        st.markdown("**Low**")
-        st.write(low_str)
+        st.markdown("<div style='text-align: center;'>**Low**</div>", unsafe_allow_html=True)
+        st.write(f"<div style='text-align: center;'>{low_str}</div>", unsafe_allow_html=True)
     with col5:
-        st.markdown("**Current**")
-        st.write(current_str)
+        st.markdown("<div style='text-align: center;'>**Current**</div>", unsafe_allow_html=True)
+        st.write(f"<div style='text-align: center;'>{current_str}</div>", unsafe_allow_html=True)
     with col6:
-        st.markdown("**Change**")
-        st.write(change_str)
+        st.markdown("<div style='text-align: center;'>**Change**</div>", unsafe_allow_html=True)
+        st.write(f"<div style='text-align: center;'>{change_str}</div>", unsafe_allow_html=True)
     with col7:
-        st.markdown("**Volume**")
-        st.write(volume_str)
+        st.markdown("<div style='text-align: center;'>**Volume**</div>", unsafe_allow_html=True)
+        st.write(f"<div style='text-align: center;'>{volume_str}</div>", unsafe_allow_html=True)
 
 else:
     st.write("No data available for the latest day.")
@@ -519,7 +537,41 @@ if not historical_predictions_df.empty:
         historical_accuracy = accuracy_score(evaluated_predictions['Actual_Outcome'].astype(str), evaluated_predictions['Predicted_Direction'].astype(str))
         st.write(f"Historical Prediction Accuracy (evaluated outcomes): {historical_accuracy:.2%}") # Display as percentage
 
-    # Display the historical predictions table, latest entries first
-    st.dataframe(historical_predictions_df.sort_index(ascending=False))
+    # --- Display historical predictions using st.columns for formatting and alignment ---
+    # Define column headers and widths
+    hist_pred_cols = st.columns([1, 2, 2, 2]) # Date, Predicted Direction, Confidence Score, Actual Outcome
+
+    # Display headers
+    with hist_pred_cols[0]:
+         st.markdown("<div style='text-align: center;'>**Date**</div>", unsafe_allow_html=True)
+    with hist_pred_cols[1]:
+         st.markdown("<div style='text-align: center;'>**Predicted Direction**</div>", unsafe_allow_html=True)
+    with hist_pred_cols[2]:
+         st.markdown("<div style='text-align: center;'>**Confidence Score**</div>", unsafe_allow_html=True)
+    with hist_pred_cols[3]:
+         st.markdown("<div style='text-align: center;'>**Actual Outcome**</div>", unsafe_allow_html=True)
+
+    # Display rows, sorting by date descending
+    for index, row in historical_predictions_df.sort_index(ascending=False).iterrows():
+        date_str = index.strftime('%Y-%m-%d') # Format date
+        predicted_direction = row['Predicted_Direction'] if pd.notna(row['Predicted_Direction']) else "N/A"
+        confidence_score = row['Confidence_Score'] if pd.notna(row['Confidence_Score']) else pd.NA # Keep as number/NA for formatting
+        actual_outcome = row['Actual_Outcome'] if pd.notna(row['Actual_Outcome']) else "N/A"
+
+        # Format confidence score as percentage, handle NA
+        confidence_str = f'{confidence_score:.2%}' if pd.notna(confidence_score) else "N/A"
+
+
+        row_cols = st.columns([1, 2, 2, 2]) # Match header column widths
+
+        with row_cols[0]:
+             st.markdown(f"<div style='text-align: center;'>{date_str}</div>", unsafe_allow_html=True)
+        with row_cols[1]:
+             st.markdown(f"<div style='text-align: center;'>{predicted_direction}</div>", unsafe_allow_html=True)
+        with row_cols[2]:
+             st.markdown(f"<div style='text-align: center;'>{confidence_str}</div>", unsafe_allow_html=True)
+        with row_cols[3]:
+             st.markdown(f"<div style='text-align: center;'>{actual_outcome}</div>", unsafe_allow_html=True)
+
 else:
     st.write("No recorded predictions found.")
