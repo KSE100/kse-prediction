@@ -426,11 +426,8 @@ if st.button("Run Analysis and Get Prediction"):
                 st.subheader(prediction_title)
 
                 # Prepare data for HTML table, ensuring confidence score is formatted as percentage string
-                prediction_summary_dict = {
-                    'Predicted Direction': [predicted_direction_tomorrow],
-                    'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage string
-                }
-                prediction_df = pd.DataFrame(prediction_summary_dict)
+                predicted_direction_display = predicted_direction_tomorrow
+                confidence_score_display = f'{confidence_score_tomorrow:.2%}' # Format confidence as percentage string
 
                 # Construct HTML table string with centering and border styling - Removed background-color
                 prediction_html = f"""
@@ -571,6 +568,9 @@ if not historical_predictions_df.empty:
     historical_predictions_display['Actual Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A')
     # Rename 'Predicted_Direction' column for display
     historical_predictions_display = historical_predictions_display.rename(columns={'Predicted_Direction': 'Predicted Direction'})
+    # Rename 'Confidence_Score' column for display - ADDED THIS LINE
+    historical_predictions_display = historical_predictions_display.rename(columns={'Confidence_Score': 'Confidence Score'})
+
     # Drop the original 'Actual_Outcome' column if it still exists and is not the renamed one
     if 'Actual_Outcome' in historical_predictions_display.columns and 'Actual Outcome' in historical_predictions_display.columns and 'Actual_Outcome' != 'Actual Outcome':
          historical_predictions_display = historical_predictions_display.drop(columns=['Actual_Outcome'])
