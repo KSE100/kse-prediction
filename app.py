@@ -429,13 +429,13 @@ if st.button("Run Analysis and Get Prediction"):
                 predicted_direction_display = predicted_direction_tomorrow
                 confidence_score_display = f'{confidence_score_tomorrow:.2%}' # Format confidence as percentage string
 
-                # Construct HTML table string with centering
+                # Construct HTML table string with centering and border styling
                 prediction_html = f"""
                 <table style="width:100%; text-align: center; border-collapse: collapse;">
                   <thead>
                     <tr>
-                      <th style="border: 1px solid #dddddd; padding: 8px;">Predicted Direction</th>
-                      <th style="border: 1px solid #dddddd; padding: 8px;">Confidence Score</th>
+                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Predicted Direction</th>
+                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Confidence Score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -491,18 +491,18 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     change_str = f'{change:.2f}' if isinstance(change, (int, float)) else "N/A"
     volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
-    # Construct HTML table string with centering
+    # Construct HTML table string with centering and border styling
     summary_html = f"""
     <table style="width:100%; text-align: center; border-collapse: collapse;">
       <thead>
         <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px;">LDCP</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Open</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">High</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Low</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Current</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Change</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Volume</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">LDCP</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Open</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">High</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Low</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Current</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Change</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Volume</th>
         </tr>
       </thead>
       <tbody>
@@ -560,15 +560,14 @@ if not historical_predictions_df.empty:
         st.write(f"Historical Prediction Accuracy (evaluated outcomes): {historical_accuracy:.2%}") # Display as percentage
 
     # --- Display historical predictions using HTML table in markdown ---
-    # Construct HTML table string with centering
-    historical_predictions_html = """
-    <table style="width:100%; text-align: center; border-collapse: collapse;">
+    # Construct the header row
+    historical_predictions_html_rows = """
       <thead>
         <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Date</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Predicted Direction</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Confidence Score</th>
-          <th style="border: 1px solid #dddddd; padding: 8px;">Actual Outcome</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Date</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Predicted Direction</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Confidence Score</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Actual Outcome</th>
         </tr>
       </thead>
       <tbody>
@@ -584,20 +583,28 @@ if not historical_predictions_df.empty:
         # Format confidence score as percentage, handle NA
         confidence_str = f'{confidence_score:.2%}' if pd.notna(confidence_score) else "N/A"
 
-        historical_predictions_html += f"""
+        # Add each row HTML to the string
+        historical_predictions_html_rows += f"""
         <tr>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{date_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{predicted_direction}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{confidence_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{actual_outcome}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{date_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{predicted_direction}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{confidence_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{actual_outcome}</td>
         </tr>
         """
 
-    historical_predictions_html += """
+    # Close the tbody and table tags
+    historical_predictions_html_rows += """
       </tbody>
     </table>
     """
-    st.markdown(historical_predictions_html, unsafe_allow_html=True)
+    # Construct the full HTML table string
+    full_historical_predictions_html = f"""
+    <table style="width:100%; border-collapse: collapse;">
+        {historical_predictions_html_rows}
+    """
+
+    st.markdown(full_historical_predictions_html, unsafe_allow_html=True)
 
 
 else:
