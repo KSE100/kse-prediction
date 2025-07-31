@@ -232,7 +232,10 @@ def load_predictions():
                 'Actual_Outcome': 'string'
             })
 
-            # Drop any completely blank rows that might have been introduced
+            # Explicitly handle potential empty strings or whitespace as NA before dropping
+            for col in ['Predicted_Direction', 'Actual_Outcome']:
+                 predictions_df[col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
+
             predictions_df.dropna(how='all', inplace=True)
 
 
@@ -301,8 +304,11 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
             predictions_df.sort_index(inplace=True)
             # Use error handling for saving
             try:
-                # Drop any blank rows before saving
+                # Drop any blank rows before saving, after ensuring empty strings are NA
+                for col in ['Predicted_Direction', 'Actual_Outcome']:
+                    predictions_df[col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
                 predictions_df.dropna(how='all', inplace=True)
+
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
                 st.write(f"Prediction for {prediction_date.date()} stored.") # Keep this message as it's an action confirmation
@@ -348,10 +354,12 @@ def update_actual_outcomes(historical_data_processed):
                     updated_count += 1
 
         if updated_count > 0:
-             # Use error handling for saving
+             # Use error handling for saving, after ensuring empty strings are NA
             try:
-                # Drop any blank rows before saving
+                for col in ['Predicted_Direction', 'Actual_Outcome']:
+                    predictions_df[col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
                 predictions_df.dropna(how='all', inplace=True)
+
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
                 # st.write(f"Updated {updated_count} historical prediction outcomes.") # Suppressed
@@ -562,13 +570,23 @@ if not historical_predictions_df.empty:
     # --- Display historical predictions using st.dataframe ---
     # Prepare data for st.dataframe, formatting confidence score as percentage string
     historical_predictions_display = historical_predictions_df.copy()
+
+    # Refined cleaning: Ensure empty strings or whitespace are treated as NA before dropping/formatting
+    for col in ['Predicted_Direction', 'Actual_Outcome']:
+        historical_predictions_display[col] = historical_predictions_display[col].replace(r'^\s*$', pd.NA, regex=True)
+
+    # Drop any completely blank rows that might have been introduced before processing for display
+    historical_predictions_display.dropna(how='all', inplace=True)
+
     # Apply formatting only to non-NA confidence scores
     historical_predictions_display['Confidence_Score'] = historical_predictions_display['Confidence_Score'].apply(lambda x: f'{x:.2%}' if pd.notna(x) else "N/A")
-    # Ensure Actual_Outcome is string for consistent display
+
+    # Ensure Actual_Outcome is string for consistent display, replacing NA with "N/A"
     historical_predictions_display['Actual Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A')
+
     # Rename 'Predicted_Direction' column for display
     historical_predictions_display = historical_predictions_display.rename(columns={'Predicted_Direction': 'Predicted Direction'})
-    # Rename 'Confidence_Score' column for display - ADDED THIS LINE
+    # Rename 'Confidence_Score' column for display
     historical_predictions_display = historical_predictions_display.rename(columns={'Confidence_Score': 'Confidence Score'})
 
     # Drop the original 'Actual_Outcome' column if it still exists and is not the renamed one
@@ -577,11 +595,25 @@ if not historical_predictions_df.empty:
 
 
     # Reorder columns for display
-    historical_predictions_display = historical_predictions_display[['Predicted Direction', 'Confidence Score', 'Actual Outcome']]
+    # Ensure columns exist after cleaning and renaming
+    display_columns = []
+    if 'Predicted Direction' in historical_predictions_display.columns: display_columns.append('Predicted Direction')
+    if 'Confidence Score' in historical_predictions_display.columns: display_columns.append('Confidence Score')
+    if 'Actual Outcome' in historical_predictions_display.columns: display_columns.append('Actual Outcome')
+
+    if display_columns:
+        historical_predictions_display = historical_predictions_display[display_columns]
+    else:
+        st.warning("Could not find required columns for historical predictions display after processing.")
+        historical_predictions_display = pd.DataFrame() # Ensure it's an empty DataFrame if columns are missing
 
 
     # Display using st.dataframe with use_container_width, sorting by date descending and setting height
-    st.dataframe(historical_predictions_display.sort_index(ascending=False), use_container_width=True, height=300) # Set a larger height for historical data
+    if not historical_predictions_display.empty:
+        st.dataframe(historical_predictions_display.sort_index(ascending=False), use_container_width=True, height=300) # Set a larger height for historical data
+    else:
+        st.write("No historical predictions to display after cleaning.")
+
 
 else:
     st.write("No recorded predictions found.")
