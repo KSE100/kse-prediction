@@ -560,8 +560,8 @@ if not historical_predictions_df.empty:
         st.write(f"Historical Prediction Accuracy (evaluated outcomes): {historical_accuracy:.2%}") # Display as percentage
 
     # --- Display historical predictions using HTML table in markdown ---
-    # Construct the header row and start tbody
-    historical_predictions_html_content = """
+    # Construct the header row
+    historical_predictions_html_header = """
       <thead>
         <tr>
           <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Date</th>
@@ -570,9 +570,10 @@ if not historical_predictions_df.empty:
           <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Actual Outcome</th>
         </tr>
       </thead>
-      <tbody>
     """
 
+    # Collect tbody rows in a list
+    historical_predictions_html_rows_list = []
     # Add rows, sorting by date descending
     for index, row in historical_predictions_df.sort_index(ascending=False).iterrows():
         date_str = index.strftime('%Y-%m-%d') # Format date
@@ -583,25 +584,25 @@ if not historical_predictions_df.empty:
         # Format confidence score as percentage, handle NA
         confidence_str = f'{confidence_score:.2%}' if pd.notna(confidence_score) else "N/A"
 
-        # Add each row HTML to the string
-        historical_predictions_html_content += f"""
+        # Add each row HTML to the list
+        historical_predictions_html_rows_list.append(f"""
         <tr>
           <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{date_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{predicted_direction}</td>
           <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{confidence_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{actual_outcome}</td>
         </tr>
-        """
+        """)
 
-    # Close the tbody and table tags
-    historical_predictions_html_content += """
-      </tbody>
-    </table>
-    """
-    # Construct the full HTML table string
+    # Join the rows and construct the full HTML table string
+    historical_predictions_html_rows_str = "\n".join(historical_predictions_html_rows_list)
+
     full_historical_predictions_html = f"""
     <table style="width:100%; border-collapse: collapse;">
-        {historical_predictions_html_content}
+        {historical_predictions_html_header}
+        <tbody>
+        {historical_predictions_html_rows_str}
+        </tbody>
     </table>
     """
 
