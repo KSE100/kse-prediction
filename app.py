@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -182,37 +181,72 @@ def make_prediction(model, X_latest, model_classes):
 
 def load_predictions():
     """Loads historical predictions from a CSV file."""
-    try:
-        # Ensure the data directory exists before trying to read
-        os.makedirs(os.path.dirname(PREDICTIONS_FILE), exist_ok=True)
+    # Ensure the data directory exists before trying to read or write
+    os.makedirs(os.path.dirname(PREDICTIONS_FILE), exist_ok=True)
 
-        if os.path.exists(PREDICTIONS_FILE):
-            # Attempt to read the file with robust error handling
+    # Define the expected columns for the predictions DataFrame
+    expected_columns = ['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome']
+    index_column_name = 'Date'
+
+    # Define an empty DataFrame with the expected structure and index name
+    empty_predictions_df = pd.DataFrame(columns=expected_columns).astype({
+        'Predicted_Direction': 'string',
+        'Confidence_Score': 'float64',
+        'Actual_Outcome': 'string'
+    }).set_index(pd.to_datetime([]).rename(index_column_name))
+
+
+    if os.path.exists(PREDICTIONS_FILE):
+        try:
+            # Try reading the file assuming the 'Date' column exists and is the index
+            predictions_df = pd.read_csv(PREDICTIONS_FILE, index_col=index_column_name, parse_dates=[index_column_name])
+
+            # Ensure index is datetime
+            predictions_df.index = pd.to_datetime(predictions_df.index)
+
+            # Ensure required columns exist, add if missing with appropriate NA types
+            for col in expected_columns:
+                if col not in predictions_df.columns:
+                    predictions_df[col] = pd.Series(dtype='string') # Use string dtype for object-like columns
+
+            # Ensure dtypes are correct after loading
+            predictions_df = predictions_df.astype({
+                'Predicted_Direction': 'string',
+                'Confidence_Score': 'float64',
+                'Actual_Outcome': 'string'
+            })
+
+            # Check if the loaded DataFrame is empty (e.g., file was created but empty)
+            if predictions_df.empty:
+                # st.write(f"Loaded empty predictions file from {PREDICTIONS_FILE}. Starting with empty DataFrame.") # Suppressed
+                return empty_predictions_df # Return the correctly structured empty DataFrame
+            else:
+                 # st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}") # Suppressed
+                 return predictions_df
+
+        except Exception as e:
+            # If reading with index_col fails (e.g., 'Date' column missing or file malformed)
+            st.warning(f"Could not read {PREDICTIONS_FILE} correctly due to error: {e}. Attempting to create a fresh file.")
+            # Return the correctly structured empty DataFrame and attempt to save it
             try:
-                # Specify dtypes to avoid parsing issues
-                predictions_df = pd.read_csv(PREDICTIONS_FILE, index_col='Date', parse_dates=True, dtype={'Predicted_Direction': str, 'Confidence_Score': float, 'Actual_Outcome': str})
-                # Ensure index is datetime just in case
-                predictions_df.index = pd.to_datetime(predictions_df.index)
-                # Ensure required columns exist, add if missing with appropriate NA types
-                if 'Predicted_Direction' not in predictions_df.columns: predictions_df['Predicted_Direction'] = pd.Series(dtype='string')
-                if 'Confidence_Score' not in predictions_df.columns: predictions_df['Confidence_Score'] = pd.Series(dtype='float64')
-                if 'Actual_Outcome' not in predictions_df.columns: predictions_df['Actual_Outcome'] = pd.Series(dtype='string')
+                empty_predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label=index_column_name)
+                # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}") # Suppressed
+            except Exception as save_e:
+                 st.error(f"Could not save a new empty predictions file to {PREDICTIONS_FILE}: {save_e}")
 
+            return empty_predictions_df # Always return the correctly structured empty DataFrame on error
 
-                # st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}") # Suppressed
-                return predictions_df
-            except Exception as e:
-                st.warning(f"Could not read {PREDICTIONS_FILE} due to error: {e}. Returning empty predictions DataFrame.")
-                # Return an empty DataFrame with the expected structure and DatetimeIndex
-                return pd.DataFrame(columns=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome']).astype({'Predicted_Direction': 'string', 'Confidence_Score': 'float64', 'Actual_Outcome': 'string'}).set_index(pd.to_datetime([]).rename('Date'))
-        else:
-            # st.write("No historical predictions file found. Starting with empty predictions DataFrame.") # Suppressed
-            # Return an empty DataFrame with the expected structure and DatetimeIndex
-            return pd.DataFrame(columns=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome']).astype({'Predicted_Direction': 'string', 'Confidence_Score': 'float64', 'Actual_Outcome': 'string'}).set_index(pd.to_datetime([]).rename('Date'))
-    except Exception as e:
-        st.error(f"An unexpected error occurred while loading predictions: {e}")
-        # Return an empty DataFrame even for unexpected errors
-        return pd.DataFrame(columns=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome']).astype({'Predicted_Direction': 'string', 'Confidence_Score': 'float64', 'Actual_Outcome': 'string'}).set_index(pd.to_datetime([]).rename('Date'))
+    else:
+        # If the file does not exist
+        # st.write("No historical predictions file found. Creating a new one.") # Suppressed
+        # Create an empty DataFrame with the expected structure and DatetimeIndex
+        try:
+            empty_predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label=index_column_name)
+            # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}\") # Suppressed
+        except Exception as save_e:
+             st.error(f"Could not save a new empty predictions file to {PREDICTIONS_FILE}: {save_e}")
+
+        return empty_predictions_df # Return the correctly structured empty DataFrame
 
 
 def store_prediction(prediction_date, predicted_direction, confidence_score):
@@ -220,6 +254,10 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
     try:
         # Load existing predictions or create an empty DataFrame
         predictions_df = load_predictions() # Use the robust load function
+
+        # Convert prediction_date to datetime if it's not already
+        prediction_date = pd.to_datetime(prediction_date)
+
 
         # Add the new prediction
         # Check if a prediction for this date already exists
@@ -243,7 +281,8 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
             predictions_df.sort_index(inplace=True)
             # Use error handling for saving
             try:
-                predictions_df.to_csv(PREDICTIONS_FILE)
+                # Save with index=True to ensure the 'Date' index is written as a column
+                predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
                 st.write(f"Prediction for {prediction_date.date()} stored.") # Keep this message as it's an action confirmation
             except Exception as e:
                  st.error(f"Could not save prediction to {PREDICTIONS_FILE}: {e}")
@@ -289,7 +328,8 @@ def update_actual_outcomes(historical_data_processed):
         if updated_count > 0:
              # Use error handling for saving
             try:
-                predictions_df.to_csv(PREDICTIONS_FILE)
+                # Save with index=True to ensure the 'Date' index is written as a column
+                predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
                 # st.write(f"Updated {updated_count} historical prediction outcomes.") # Suppressed
             except Exception as e:
                 st.error(f"Could not save updated predictions to {PREDICTIONS_FILE}: {e}")
@@ -307,7 +347,7 @@ def update_actual_outcomes(historical_data_processed):
 
 st.title(f"Stock Price Direction Prediction Dashboard ({STOCK_TICKER})")
 
-st.write("Click the button below to fetch the latest data, update the model, and get a prediction for the next trading day's price direction.")
+st.write("Click the button below to fetch the latest data, update the model, and get a prediction for the next trading day\'s price direction.")
 
 # Fetch raw data initially
 raw_data = fetch_raw_data(STOCK_TICKER, DATA_FILE)
@@ -319,7 +359,7 @@ historical_data_processed, latest_day_data = process_data(raw_data)
 # Pass historical_data_processed to the update function
 historical_predictions_df = update_actual_outcomes(historical_data_processed)
 
-# Display the "Run Analysis and Get Prediction" button first
+# Display the \"Run Analysis and Get Prediction\" button first
 if st.button("Run Analysis and Get Prediction"):
     st.write("Running analysis...") # Keep this to indicate processing started
 
@@ -355,23 +395,6 @@ if st.button("Run Analysis and Get Prediction"):
 
 
             # --- REMOVED: Display model performance metrics for the PREVIOUS day ---
-            # This section was causing a duplicate/unwanted table.
-            # if 'Price_Direction' in latest_day_data.columns and not latest_day_data.empty:
-            #      if not latest_day_data.index.empty:
-            #         latest_data_date = latest_day_data.index[0]
-            #         st.subheader(f"Model Performance on Previous Day ({latest_data_date.date()}):")
-            #         latest_actual_direction = latest_day_data['Price_Direction'].iloc[0]
-            #         X_latest_cleaned_for_performance = X_latest.dropna(inplace=False)
-            #         if not X_latest_cleaned_for_performance.empty:
-            #              latest_predicted_direction = model_classification.predict(X_latest_cleaned_for_performance)[0]
-            #              performance_summary = {
-            #                 'Metric': ['Actual Direction', 'Predicted Direction', 'Accuracy'],
-            #                 'Value': [latest_actual_direction, latest_predicted_direction, f'{accuracy_score([latest_actual_direction], [latest_predicted_direction]):.2f}']
-            #             }
-            #              performance_df = pd.DataFrame(performance_summary)
-            #              st.dataframe(performance_df.set_index('Metric'))
-            #         else:
-            #              st.write("Could not calculate performance on previous day due to missing data.")
 
 
             # Optionally display training accuracy
@@ -384,7 +407,7 @@ if st.button("Run Analysis and Get Prediction"):
     else:
         st.error("Insufficient data to run analysis and prediction.")
 
-# Display "Summary for Today" section after the button and prediction results
+# Display \"Summary for Today\" section after the button and prediction results
 st.subheader("Summary for Today:")
 if not latest_day_data.empty:
     # Calculate LDCP (Last Day Closing Price) - which is the Close_Lag1 in latest_day_data
@@ -411,10 +434,10 @@ if not latest_day_data.empty:
     }
     latest_day_df = pd.DataFrame(latest_day_summary_dict)
 
-    # Format numerical columns, handling "N/A"
+    # Format numerical columns, handling \"N/A\"
     for col in ['LDCP', 'Open', 'High', 'Low', 'Current', 'Change']:
         latest_day_df[col] = latest_day_df[col].apply(lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x)
-    # Format Volume differently if needed, e.g., without decimals or with commas, handling "N/A"
+    # Format Volume differently if needed, e.g., without decimals or with commas, handling \"N/A\"
     latest_day_df.loc[latest_day_df.index, 'Volume'] = latest_day_df['Volume'].apply(lambda x: f'{float(x):,.0f}' if isinstance(x, (int, float)) else x)
 
     st.dataframe(latest_day_df) # Display the restructured dataframe
@@ -458,4 +481,3 @@ if not historical_predictions_df.empty:
     st.dataframe(historical_predictions_df.sort_index(ascending=False))
 else:
     st.write("No recorded predictions found.")
-
