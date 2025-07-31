@@ -234,9 +234,12 @@ def load_predictions():
 
             # Explicitly handle potential empty strings or whitespace as NA before dropping
             for col in ['Predicted_Direction', 'Actual_Outcome']:
-                 predictions_df[col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
+                # Use .loc to avoid SettingWithCopyWarning when modifying in place on a potentially sliced view
+                if col in predictions_df.columns: # Add check if column exists
+                    predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
 
-            predictions_df.dropna(how='all', inplace=True)
+            # Drop rows where ALL of the SPECIFIC DATA columns are NA - MODIFIED THIS LINE
+            predictions_df.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
 
 
             # Check if the loaded DataFrame is empty (e.g., file was created but empty)
@@ -306,8 +309,10 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
             try:
                 # Drop any blank rows before saving, after ensuring empty strings are NA
                 for col in ['Predicted_Direction', 'Actual_Outcome']:
-                    predictions_df[col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
-                predictions_df.dropna(how='all', inplace=True)
+                     if col in predictions_df.columns: # Add check if column exists
+                        predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
+                # Drop rows where ALL of the SPECIFIC DATA columns are NA - MODIFIED THIS LINE
+                predictions_df.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
@@ -357,8 +362,10 @@ def update_actual_outcomes(historical_data_processed):
              # Use error handling for saving, after ensuring empty strings are NA
             try:
                 for col in ['Predicted_Direction', 'Actual_Outcome']:
-                    predictions_df[col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
-                predictions_df.dropna(how='all', inplace=True)
+                     if col in predictions_df.columns: # Add check if column exists
+                        predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
+                # Drop rows where ALL of the SPECIFIC DATA columns are NA - MODIFIED THIS LINE
+                predictions_df.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
@@ -518,7 +525,7 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
           <td style="border: 1px solid #dddddd; padding: 8px;">{ldcp_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{open_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{high_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{low_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">low_str</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{current_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{change_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{volume_str}</td>
@@ -573,10 +580,12 @@ if not historical_predictions_df.empty:
 
     # Refined cleaning: Ensure empty strings or whitespace are treated as NA before dropping/formatting
     for col in ['Predicted_Direction', 'Actual_Outcome']:
-        historical_predictions_display[col] = historical_predictions_display[col].replace(r'^\s*$', pd.NA, regex=True)
+        if col in historical_predictions_display.columns:
+            historical_predictions_display.loc[:, col] = historical_predictions_display[col].replace(r'^\s*$', pd.NA, regex=True)
 
-    # Drop any completely blank rows that might have been introduced before processing for display
-    historical_predictions_display.dropna(how='all', inplace=True)
+    # Drop any completely blank rows in the specified subset of columns before processing for display
+    historical_predictions_display.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
+
 
     # Apply formatting only to non-NA confidence scores
     historical_predictions_display['Confidence_Score'] = historical_predictions_display['Confidence_Score'].apply(lambda x: f'{x:.2%}' if pd.notna(x) else "N/A")
