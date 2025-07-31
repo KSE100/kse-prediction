@@ -416,7 +416,7 @@ if st.button("Run Analysis and Get Prediction"):
                 # The prediction date is the day AFTER the latest data point
                 predicted_date = date_of_latest_data + timedelta(days=1)
 
-                # --- Display prediction for the NEXT trading day using st.dataframe ---
+                # --- Display prediction for the NEXT trading day using HTML table in markdown ---
                 # Format the date for the title
                 day_name = calendar.day_name[predicted_date.weekday()]
                 day_with_suffix = str(predicted_date.day) + ('th' if 11<=predicted_date.day<=13 else {1:'st', 2:'nd', 3:'rd'}.get(predicted_date.day%10, 'th'))
@@ -425,15 +425,29 @@ if st.button("Run Analysis and Get Prediction"):
 
                 st.subheader(prediction_title)
 
-                # Prepare data for st.dataframe, ensuring confidence score is formatted as percentage string
-                prediction_summary_dict = {
-                    'Predicted Direction': [predicted_direction_tomorrow],
-                    'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage string
-                }
-                prediction_df = pd.DataFrame(prediction_summary_dict)
+                # Prepare data for HTML table, ensuring confidence score is formatted as percentage string
+                predicted_direction_display = predicted_direction_tomorrow
+                confidence_score_display = f'{confidence_score_tomorrow:.2%}' # Format confidence as percentage string
 
-                # Display using st.dataframe with use_container_width and height
-                st.dataframe(prediction_df, use_container_width=True, height=100)
+                # Construct HTML table string with centering and border styling
+                # Reverted to the structure that caused the white header issue as requested
+                prediction_html = f"""
+                <table style="width:100%; text-align: center; border-collapse: collapse;">
+                  <thead>
+                    <tr>
+                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Predicted Direction</th>
+                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Confidence Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style="border: 1px solid #dddddd; padding: 8px;">{predicted_direction_display}</td>
+                      <td style="border: 1px solid #dddddd; padding: 8px;">{confidence_score_display}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                """
+                st.markdown(prediction_html, unsafe_allow_html=True)
 
 
                 # 5. Store the new prediction
@@ -478,20 +492,36 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     change_str = f'{change:.2f}' if isinstance(change, (int, float)) else "N/A"
     volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
-    # Create a DataFrame for the summary, ensuring all values are strings for consistent display
-    latest_day_summary_dict = {
-        'LDCP': [ldcp_str],
-        'Open': [open_str],
-        'High': [high_str],
-        'Low': [low_str],
-        'Current': [current_str],
-        'Change': [change_str],
-        'Volume': [volume_str]
-    }
-    latest_day_df = pd.DataFrame(latest_day_summary_dict)
+    # Construct HTML table string with centering and border styling
+    # Reverted to the structure that caused the white header issue as requested
+    summary_html = f"""
+    <table style="width:100%; text-align: center; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">LDCP</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Open</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">High</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Low</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Current</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Change</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Volume</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{ldcp_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{open_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{high_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{low_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{current_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{change_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{volume_str}</td>
+        </tr>
+      </tbody>
+    </table>
+    """
+    st.markdown(summary_html, unsafe_allow_html=True)
 
-    # Display using st.dataframe with use_container_width and set height
-    st.dataframe(latest_day_df, use_container_width=True, height=100)
 
 else:
     st.write("No data available for the latest day.")
@@ -532,14 +562,14 @@ if not historical_predictions_df.empty:
         st.write(f"Historical Prediction Accuracy (evaluated outcomes): {historical_accuracy:.2%}") # Display as percentage
 
     # --- Display historical predictions using HTML table in markdown ---
-    # Construct the header row
-    historical_predictions_html_rows = """
+    # Construct the header row and start tbody
+    historical_predictions_html_content = """
       <thead>
         <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Date</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Predicted Direction</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Confidence Score</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Actual Outcome</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Date</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Predicted Direction</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Confidence Score</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Actual Outcome</th>
         </tr>
       </thead>
       <tbody>
@@ -556,7 +586,7 @@ if not historical_predictions_df.empty:
         confidence_str = f'{confidence_score:.2%}' if pd.notna(confidence_score) else "N/A"
 
         # Add each row HTML to the string
-        historical_predictions_html_rows += f"""
+        historical_predictions_html_content += f"""
         <tr>
           <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{date_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{predicted_direction}</td>
@@ -566,14 +596,14 @@ if not historical_predictions_df.empty:
         """
 
     # Close the tbody and table tags
-    historical_predictions_html_rows += """
+    historical_predictions_html_content += """
       </tbody>
-    </table>
     """
     # Construct the full HTML table string
     full_historical_predictions_html = f"""
     <table style="width:100%; border-collapse: collapse;">
-        {historical_predictions_html_rows}
+        {historical_predictions_html_content}
+    </table>
     """
 
     st.markdown(full_historical_predictions_html, unsafe_allow_html=True)
