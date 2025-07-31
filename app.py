@@ -469,7 +469,8 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     # Format Volume differently if needed, e.g., without decimals or with commas, handling \"N/A\"
     latest_day_df.loc[latest_day_df.index, 'Volume'] = latest_day_df['Volume'].apply(lambda x: f'{float(x):,.0f}' if isinstance(x, (int, float)) else x)
 
-    st.dataframe(latest_day_df) # Display the restructured dataframe
+    # Display the restructured dataframe with a specified width
+    st.dataframe(latest_day_df, width=700) # Adjust width as needed
 
 else:
     st.write("No data available for the latest day.")
