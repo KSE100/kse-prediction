@@ -426,8 +426,11 @@ if st.button("Run Analysis and Get Prediction"):
                 st.subheader(prediction_title)
 
                 # Prepare data for HTML table, ensuring confidence score is formatted as percentage string
-                predicted_direction_display = predicted_direction_tomorrow
-                confidence_score_display = f'{confidence_score_tomorrow:.2%}' # Format confidence as percentage string
+                prediction_summary_dict = {
+                    'Predicted Direction': [predicted_direction_tomorrow],
+                    'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage string
+                }
+                prediction_df = pd.DataFrame(prediction_summary_dict)
 
                 # Construct HTML table string with centering and border styling - Removed background-color
                 prediction_html = f"""
@@ -559,55 +562,26 @@ if not historical_predictions_df.empty:
         historical_accuracy = accuracy_score(evaluated_predictions['Actual_Outcome'].astype(str), evaluated_predictions['Predicted_Direction'].astype(str))
         st.write(f"Historical Prediction Accuracy (evaluated outcomes): {historical_accuracy:.2%}") # Display as percentage
 
-    # --- Display historical predictions using HTML table in markdown ---
-    # Construct the header row
-    historical_predictions_html_header = """
-      <thead>
-        <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Date</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Predicted Direction</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Confidence Score</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Actual Outcome</th>
-        </tr>
-      </thead>
-    """
+    # --- Display historical predictions using st.dataframe ---
+    # Prepare data for st.dataframe, formatting confidence score as percentage string
+    historical_predictions_display = historical_predictions_df.copy()
+    # Apply formatting only to non-NA confidence scores
+    historical_predictions_display['Confidence_Score'] = historical_predictions_display['Confidence_Score'].apply(lambda x: f'{x:.2%}' if pd.notna(x) else "N/A")
+    # Ensure Actual_Outcome is string for consistent display
+    historical_predictions_display['Actual Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A')
+    # Rename 'Predicted_Direction' column for display
+    historical_predictions_display = historical_predictions_display.rename(columns={'Predicted_Direction': 'Predicted Direction'})
+    # Drop the original 'Actual_Outcome' column if it still exists and is not the renamed one
+    if 'Actual_Outcome' in historical_predictions_display.columns and 'Actual Outcome' in historical_predictions_display.columns and 'Actual_Outcome' != 'Actual Outcome':
+         historical_predictions_display = historical_predictions_display.drop(columns=['Actual_Outcome'])
 
-    # Collect tbody rows in a list
-    historical_predictions_html_rows_list = []
-    # Add rows, sorting by date descending
-    for index, row in historical_predictions_df.sort_index(ascending=False).iterrows():
-        date_str = index.strftime('%Y-%m-%d') # Format date
-        predicted_direction = row['Predicted_Direction'] if pd.notna(row['Predicted_Direction']) else "N/A"
-        confidence_score = row['Confidence_Score'] if pd.notna(row['Confidence_Score']) else pd.NA # Keep as number/NA for formatting
-        actual_outcome = row['Actual_Outcome'] if pd.notna(row['Actual_Outcome']) else "N/A"
 
-        # Format confidence score as percentage, handle NA
-        confidence_str = f'{confidence_score:.2%}' if pd.notna(confidence_score) else "N/A"
+    # Reorder columns for display
+    historical_predictions_display = historical_predictions_display[['Predicted Direction', 'Confidence Score', 'Actual Outcome']]
 
-        # Add each row HTML to the list
-        historical_predictions_html_rows_list.append(f"""
-        <tr>
-          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{date_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{predicted_direction}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{confidence_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">{actual_outcome}</td>
-        </tr>
-        """)
 
-    # Join the rows and construct the full HTML table string
-    historical_predictions_html_rows_str = "\n".join(historical_predictions_html_rows_list)
-
-    full_historical_predictions_html = f"""
-    <table style="width:100%; border-collapse: collapse;">
-        {historical_predictions_html_header}
-        <tbody>
-        {historical_predictions_html_rows_str}
-        </tbody>
-    </table>
-    """
-
-    st.markdown(full_historical_predictions_html, unsafe_allow_html=True)
-
+    # Display using st.dataframe with use_container_width, sorting by date descending and setting height
+    st.dataframe(historical_predictions_display.sort_index(ascending=False), use_container_width=True, height=300) # Set a larger height for historical data
 
 else:
     st.write("No recorded predictions found.")
