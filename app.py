@@ -234,12 +234,11 @@ def load_predictions():
 
             # Explicitly handle potential empty strings or whitespace as NA before dropping
             for col in ['Predicted_Direction', 'Actual_Outcome']:
-                # Use .loc to avoid SettingWithCopyWarning when modifying in place on a potentially sliced view
                 if col in predictions_df.columns: # Add check if column exists
                     predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
 
-            # Drop rows where ALL of the SPECIFIC DATA columns are NA - MODIFIED THIS LINE
-            predictions_df.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
+            # Drop rows where Predicted_Direction is NA - MODIFIED THIS LINE
+            predictions_df.dropna(subset=['Predicted_Direction'], inplace=True)
 
 
             # Check if the loaded DataFrame is empty (e.g., file was created but empty)
@@ -311,8 +310,8 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
                 for col in ['Predicted_Direction', 'Actual_Outcome']:
                      if col in predictions_df.columns: # Add check if column exists
                         predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
-                # Drop rows where ALL of the SPECIFIC DATA columns are NA - MODIFIED THIS LINE
-                predictions_df.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
+                # Drop rows where Predicted_Direction is NA - MODIFIED THIS LINE
+                predictions_df.dropna(subset=['Predicted_Direction'], inplace=True)
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
@@ -330,7 +329,7 @@ def update_actual_outcomes(historical_data_processed):
     # st.write("Attempting to update historical prediction outcomes...") # Suppressed
     try:
         # Load existing predictions
-        predictions_df = load_predictions()
+        predictions_df = load_predictions() # This will now use the updated dropping logic
 
         if predictions_df.empty:
              # st.write("No historical predictions to update.") # Suppressed
@@ -364,8 +363,8 @@ def update_actual_outcomes(historical_data_processed):
                 for col in ['Predicted_Direction', 'Actual_Outcome']:
                      if col in predictions_df.columns: # Add check if column exists
                         predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
-                # Drop rows where ALL of the SPECIFIC DATA columns are NA - MODIFIED THIS LINE
-                predictions_df.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
+                # Drop rows where Predicted_Direction is NA - MODIFIED THIS LINE
+                predictions_df.dropna(subset=['Predicted_Direction'], inplace=True)
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
@@ -564,7 +563,7 @@ else:
 # Display historical predictions and outcomes
 st.subheader("Historical Predictions and Outcomes:")
 # Reload predictions to ensure the latest updates are shown
-historical_predictions_df = load_predictions()
+historical_predictions_df = load_predictions() # This will now use the updated dropping logic
 
 if not historical_predictions_df.empty:
     # Calculate accuracy of historical predictions with known outcomes
@@ -583,24 +582,25 @@ if not historical_predictions_df.empty:
         if col in historical_predictions_display.columns:
             historical_predictions_display.loc[:, col] = historical_predictions_display[col].replace(r'^\s*$', pd.NA, regex=True)
 
-    # Drop any completely blank rows in the specified subset of columns before processing for display
-    historical_predictions_display.dropna(how='all', subset=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome'], inplace=True)
-
+    # Drop rows where Predicted_Direction is NA - This is now done in load_predictions
 
     # Apply formatting only to non-NA confidence scores
-    historical_predictions_display['Confidence_Score'] = historical_predictions_display['Confidence_Score'].apply(lambda x: f'{x:.2%}' if pd.notna(x) else "N/A")
+    historical_predictions_display['Confidence Score'] = historical_predictions_display['Confidence_Score'].apply(lambda x: f'{x:.2%}' if pd.notna(x) else "N/A") # Renaming here
 
     # Ensure Actual_Outcome is string for consistent display, replacing NA with "N/A"
-    historical_predictions_display['Actual Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A')
+    historical_predictions_display['Actual Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A') # Renaming here
 
     # Rename 'Predicted_Direction' column for display
     historical_predictions_display = historical_predictions_display.rename(columns={'Predicted_Direction': 'Predicted Direction'})
-    # Rename 'Confidence_Score' column for display
-    historical_predictions_display = historical_predictions_display.rename(columns={'Confidence_Score': 'Confidence Score'})
+    # 'Confidence_Score' and 'Actual_Outcome' are already renamed in the previous two lines
 
     # Drop the original 'Actual_Outcome' column if it still exists and is not the renamed one
+    # Check for both original and new name existence before dropping
     if 'Actual_Outcome' in historical_predictions_display.columns and 'Actual Outcome' in historical_predictions_display.columns and 'Actual_Outcome' != 'Actual Outcome':
          historical_predictions_display = historical_predictions_display.drop(columns=['Actual_Outcome'])
+    # Check for original Confidence_Score column existence if it wasn't renamed in the apply step
+    if 'Confidence_Score' in historical_predictions_display.columns and 'Confidence Score' in historical_predictions_display.columns and 'Confidence_Score' != 'Confidence Score':
+         historical_predictions_display = historical_predictions_display.drop(columns=['Confidence_Score'])
 
 
     # Reorder columns for display
