@@ -439,38 +439,49 @@ st.subheader("Summary for Today:")
 # Use latest_day_data from session state for displaying the summary
 if 'latest_day_data' in st.session_state and not st.session_state['latest_day_data'].empty:
     latest_day_data_for_display = st.session_state['latest_day_data']
-    # Calculate LDCP (Last Day Closing Price) - which is the Close_Lag1 in latest_day_data
-    # Check if Close_Lag1 exists and is not NaN
+
+    # Calculate and format the summary data points
     ldcp = latest_day_data_for_display['Close_Lag1'].iloc[0] if 'Close_Lag1' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Close_Lag1'].iloc[0]) else "N/A"
-    # Current price is the Close price of the latest day
     current_price = latest_day_data_for_display['Close'].iloc[0] if 'Close' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Close'].iloc[0]) else "N/A"
-    # Change is Current - LDCP - only calculate if both are valid numbers
     change = current_price - ldcp if isinstance(current_price, (int, float)) and isinstance(ldcp, (int, float)) else "N/A"
     volume = latest_day_data_for_display['Volume'].iloc[0] if 'Volume' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Volume'].iloc[0]) else "N/A"
     latest_day_open = latest_day_data_for_display['Open'].iloc[0] if 'Open' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Open'].iloc[0]) else "N/A"
     latest_day_high = latest_day_data_for_display['High'].iloc[0] if 'High' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['High'].iloc[0]) else "N/A"
     latest_day_low = latest_day_data_for_display['Low'].iloc[0] if 'Low' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Low'].iloc[0]) else "N/A"
 
+    # Format numerical values to 2 decimal places, handle "N/A"
+    ldcp_str = f'{ldcp:.2f}' if isinstance(ldcp, (int, float)) else "N/A"
+    open_str = f'{latest_day_open:.2f}' if isinstance(latest_day_open, (int, float)) else "N/A"
+    high_str = f'{latest_day_high:.2f}' if isinstance(latest_day_high, (int, float)) else "N/A"
+    low_str = f'{latest_day_low:.2f}' if isinstance(latest_day_low, (int, float)) else "N/A"
+    current_str = f'{current_price:.2f}' if isinstance(current_price, (int, float)) else "N/A"
+    change_str = f'{change:.2f}' if isinstance(change, (int, float)) else "N/A"
+    volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
-    latest_day_summary_dict = {
-        'LDCP': [ldcp],
-        'Open': [latest_day_open],
-        'High': [latest_day_high],
-        'Low': [latest_day_low],
-        'Current': [current_price],
-        'Change': [change],
-        'Volume': [volume]
-    }
-    latest_day_df = pd.DataFrame(latest_day_summary_dict)
+    # Display using st.columns for better layout control
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
-    # Format numerical columns, handling \"N/A\"
-    for col in ['LDCP', 'Open', 'High', 'Low', 'Current', 'Change']:
-        latest_day_df[col] = latest_day_df[col].apply(lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x)
-    # Format Volume differently if needed, e.g., without decimals or with commas, handling \"N/A\"
-    latest_day_df.loc[latest_day_df.index, 'Volume'] = latest_day_df['Volume'].apply(lambda x: f'{float(x):,.0f}' if isinstance(x, (int, float)) else x)
-
-    # Display the restructured dataframe with a specified width
-    st.dataframe(latest_day_df, width=700) # Adjust width as needed
+    with col1:
+        st.markdown("**LDCP**")
+        st.write(ldcp_str)
+    with col2:
+        st.markdown("**Open**")
+        st.write(open_str)
+    with col3:
+        st.markdown("**High**")
+        st.write(high_str)
+    with col4:
+        st.markdown("**Low**")
+        st.write(low_str)
+    with col5:
+        st.markdown("**Current**")
+        st.write(current_str)
+    with col6:
+        st.markdown("**Change**")
+        st.write(change_str)
+    with col7:
+        st.markdown("**Volume**")
+        st.write(volume_str)
 
 else:
     st.write("No data available for the latest day.")
