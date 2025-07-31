@@ -14,6 +14,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 STOCK_TICKER = "UBL"
 DATA_FILE = os.path.join("data", "KSE30_raw_data.csv") # Save raw data in the data directory
 PROCESSED_DATA_FILE = os.path.join("data", "KSE30_processed_data.csv") # Save processed data in the data directory
+PREDICTIONS_FILE = os.path.join("data", "predictions.csv") # Save predictions file in the data directory
 
 
 # --- Helper Functions ---
@@ -86,13 +87,14 @@ def process_data(raw_data):
         # st.write("Engineered features.") # Suppressed
 
         # Create target variable for classification (next day's price direction)
+        # This compares current day's close with next day's close
         processed_data['Target'] = processed_data['Close'].shift(-1) # Keep for potential future use or debugging
         price_difference = processed_data['Target'] - processed_data['Close']
         processed_data['Price_Direction'] = np.where(price_difference > 0, 'Up', 'Down')
 
         # st.write("Created target variable.") # Suppressed
 
-        # Drop rows with NaN values introduced by lagging and rolling windows
+        # Drop rows with NaN values introduced by lagging and rolling windows (including the last row where Target is NaN)
         processed_data.dropna(inplace=True)
         # st.write(f"Processed data shape after dropping NaNs: {processed_data.shape}") # Suppressed
 
@@ -100,7 +102,7 @@ def process_data(raw_data):
              st.warning("Processed data is empty after dropping NaNs.")
              return pd.DataFrame(), pd.DataFrame()
 
-        # Separate latest day's data
+        # Separate latest day's data - this is the last row where Price_Direction could be calculated
         latest_day_data = processed_data.tail(1)
         historical_data_processed = processed_data.iloc[:-1]
 
@@ -125,6 +127,7 @@ def train_classification_model(data):
         return None, None, None, None, None, None, None
 
     # Define features (X) and target (y) for classification
+    # Exclude the 'Target' column when training
     features_classification = data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1)
     target_classification = data['Price_Direction']
 
@@ -201,7 +204,9 @@ if st.button("Run Analysis and Get Prediction"):
 
         if model_classification is not None:
             # Prepare latest day features for prediction
-            X_latest = latest_day_data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1)
+            # Ensure 'Target' and 'Price_Direction' are dropped as they are not features
+            X_latest = latest_day_data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1, errors='ignore')
+
 
             # 4. Make Prediction for the next day
             predicted_direction_tomorrow, confidence_score_tomorrow, date_of_latest_data = make_prediction(model_classification, X_latest, model_classes)
@@ -218,46 +223,9 @@ if st.button("Run Analysis and Get Prediction"):
                 st.dataframe(prediction_df.set_index('Metric'))
 
 
-            # Display model performance metrics for the PREVIOUS day in a table
-            # This section should show the performance of the prediction for the latest_day_data date
-            # based on training data up to the day before latest_day_data.
-
-            # Check if there is enough historical data to evaluate the previous day's prediction
-            if len(historical_data_processed) >= 1: # Need at least one day before the latest_day_data to train
-                # Data for training the model to predict the previous day
-                data_for_previous_day_training = historical_data_processed
-
-                # Train a model using data up to the day before the latest data point
-                prev_day_model, prev_day_train_accuracy, prev_day_model_classes = train_classification_model(data_for_previous_day_training)
-
-                if prev_day_model is not None:
-                     # Features for the latest day (which is the day we want to evaluate the prediction for)
-                    X_latest_for_evaluation = latest_day_data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1)
-
-                    if not X_latest_for_evaluation.empty and 'Price_Direction' in latest_day_data.columns:
-                         # Get the actual direction for the latest day
-                        latest_actual_direction = latest_day_data['Price_Direction'].iloc[0]
-
-                        # Predict the direction for the latest day using the model trained on previous data
-                        latest_predicted_direction = prev_day_model.predict(X_latest_for_evaluation)[0]
-
-                        # Get the date of the latest data point (the day the prediction was for)
-                        evaluation_date = latest_day_data.index[0].date()
-
-                        st.subheader(f"Model Performance on Previous Day's Prediction (for {evaluation_date}):")
-
-                        performance_summary = {
-                            'Metric': ['Actual Direction', 'Predicted Direction', 'Accuracy'],
-                            'Value': [latest_actual_direction, latest_predicted_direction, f'{accuracy_score([latest_actual_direction], [latest_predicted_direction]):.2f}']
-                        }
-                        performance_df = pd.DataFrame(performance_summary)
-                        st.dataframe(performance_df.set_index('Metric'))
-                    else:
-                         st.write("Not enough data or missing 'Price_Direction' to evaluate previous day's prediction.")
-                else:
-                    st.write("Could not train model to evaluate previous day's prediction.")
-            else:
-                st.write("Not enough historical data to evaluate previous day's prediction.")
+            # --- Removed "Model Performance on Previous Day's Prediction" section as requested ---
+            # st.subheader(f"Model Performance for Previous Day's Prediction (for {evaluation_date}):")
+            # ... (removed code)
 
 
             # Optionally display training accuracy for the main model
