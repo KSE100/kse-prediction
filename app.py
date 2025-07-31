@@ -36,7 +36,7 @@ def fetch_raw_data(ticker, data_file):
         # When deployed, Streamlit Sharing places the app in the root, so relative paths like "data/..." work.
         # For Colab execution of this cell, need to consider the current directory.
         # However, the functions are written assuming relative paths when run within the Streamlit app context.
-        # Let's keep the relative path logic within functions and rely on Streamlit's handling.
+        # Let's keep the relative path logic within functions and relying on Streamlit's handling.
         # Ensuring the directory exists is key. The os.makedirs call above handles absolute creation.
         # The to_csv inside the function will write relative to the current working directory of the Streamlit app.
 
@@ -237,7 +237,7 @@ def load_predictions():
                 # st.write(f"Loaded empty predictions file from {PREDICTIONS_FILE}. Starting with empty DataFrame.") # Suppressed
                 return empty_predictions_df # Return the correctly structured empty DataFrame
             else:
-                 # st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}") # Suppressed
+                 # st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}\") # Suppressed
                  return predictions_df
 
         except Exception as e:
@@ -258,7 +258,7 @@ def load_predictions():
         # Create an empty DataFrame with the expected structure and DatetimeIndex
         try:
             empty_predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label=index_column_name)
-            # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}") # Suppressed
+            # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}\") # Suppressed
         except Exception as save_e:
              st.error(f"Could not save a new empty predictions file to {PREDICTIONS_FILE}: {save_e}")
 
@@ -408,7 +408,7 @@ if st.button("Run Analysis and Get Prediction"):
                 # The prediction date is the day AFTER the latest data point
                 predicted_date = date_of_latest_data + timedelta(days=1)
 
-                # --- Display prediction for the NEXT trading day using st.columns ---
+                # --- Display prediction for the NEXT trading day using st.dataframe with formatted title and data ---
                 # Format the date for the title
                 # Get the day name (e.g., Friday)
                 day_name = calendar.day_name[predicted_date.weekday()]
@@ -421,16 +421,15 @@ if st.button("Run Analysis and Get Prediction"):
 
                 st.subheader(prediction_title)
 
-                # Display prediction details using columns for alignment
-                pred_col1, pred_col2 = st.columns(2)
+                # Prepare data for st.dataframe, ensuring confidence score is formatted as percentage string
+                prediction_summary_dict = {
+                    'Predicted Direction': [predicted_direction_tomorrow],
+                    'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage string
+                }
+                prediction_df = pd.DataFrame(prediction_summary_dict)
 
-                with pred_col1:
-                    st.markdown("<div style='text-align: center;'>**Predicted Direction**</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='text-align: center;'>{predicted_direction_tomorrow}</div>", unsafe_allow_html=True)
-
-                with pred_col2:
-                    st.markdown("<div style='text-align: center;'>**Confidence Score**</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='text-align: center;'>{confidence_score_tomorrow:.2%}</div>", unsafe_allow_html=True)
+                # Display using st.dataframe - alignment controlled by Streamlit
+                st.dataframe(prediction_df)
 
 
                 # 5. Store the new prediction
@@ -466,7 +465,7 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     latest_day_high = latest_day_data_for_display['High'].iloc[0] if 'High' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['High'].iloc[0]) else "N/A"
     latest_day_low = latest_day_data_for_display['Low'].iloc[0] if 'Low' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Low'].iloc[0]) else "N/A"
 
-    # Format numerical values to 2 decimal places, handle "N/A"
+    # Format numerical values to 2 decimal places, handle "N/A", return as strings for consistent type in DataFrame
     ldcp_str = f'{ldcp:.2f}' if isinstance(ldcp, (int, float)) else "N/A"
     open_str = f'{latest_day_open:.2f}' if isinstance(latest_day_open, (int, float)) else "N/A"
     high_str = f'{latest_day_high:.2f}' if isinstance(latest_day_high, (int, float)) else "N/A"
@@ -475,31 +474,20 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     change_str = f'{change:.2f}' if isinstance(change, (int, float)) else "N/A"
     volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
-    # Display using st.columns for better layout control
-    # Use relative widths for columns to try and keep them from stretching unevenly
-    col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 1, 1, 1, 1, 1, 1.5]) # Adjusted widths
+    # Create a DataFrame for the summary, ensuring all values are strings for consistent display
+    latest_day_summary_dict = {
+        'LDCP': [ldcp_str],
+        'Open': [open_str],
+        'High': [high_str],
+        'Low': [low_str],
+        'Current': [current_str],
+        'Change': [change_str],
+        'Volume': [volume_str]
+    }
+    latest_day_df = pd.DataFrame(latest_day_summary_dict)
 
-    with col1:
-        st.markdown("<div style='text-align: center;'>**LDCP**</div>", unsafe_allow_html=True)
-        st.write(f"<div style='text-align: center;'>{ldcp_str}</div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown("<div style='text-align: center;'>**Open**</div>", unsafe_allow_html=True)
-        st.write(f"<div style='text-align: center;'>{open_str}</div>", unsafe_allow_html=True)
-    with col3:
-        st.markdown("<div style='text-align: center;'>**High**</div>", unsafe_allow_html=True)
-        st.write(f"<div style='text-align: center;'>{high_str}</div>", unsafe_allow_html=True)
-    with col4:
-        st.markdown("<div style='text-align: center;'>**Low**</div>", unsafe_allow_html=True)
-        st.write(f"<div style='text-align: center;'>{low_str}</div>", unsafe_allow_html=True)
-    with col5:
-        st.markdown("<div style='text-align: center;'>**Current**</div>", unsafe_allow_html=True)
-        st.write(f"<div style='text-align: center;'>{current_str}</div>", unsafe_allow_html=True)
-    with col6:
-        st.markdown("<div style='text-align: center;'>**Change**</div>", unsafe_allow_html=True)
-        st.write(f"<div style='text-align: center;'>{change_str}</div>", unsafe_allow_html=True)
-    with col7:
-        st.markdown("<div style='text-align: center;'>**Volume**</div>", unsafe_allow_html=True)
-        st.write(f"<div style='text-align: center;'>{volume_str}</div>", unsafe_allow_html=True)
+    # Display using st.dataframe - alignment controlled by Streamlit, likely left-aligned by default
+    st.dataframe(latest_day_df)
 
 else:
     st.write("No data available for the latest day.")
@@ -537,41 +525,17 @@ if not historical_predictions_df.empty:
         historical_accuracy = accuracy_score(evaluated_predictions['Actual_Outcome'].astype(str), evaluated_predictions['Predicted_Direction'].astype(str))
         st.write(f"Historical Prediction Accuracy (evaluated outcomes): {historical_accuracy:.2%}") # Display as percentage
 
-    # --- Display historical predictions using st.columns for formatting and alignment ---
-    # Define column headers and widths
-    hist_pred_cols = st.columns([1, 2, 2, 2]) # Date, Predicted Direction, Confidence Score, Actual Outcome
-
-    # Display headers
-    with hist_pred_cols[0]:
-         st.markdown("<div style='text-align: center;'>**Date**</div>", unsafe_allow_html=True)
-    with hist_pred_cols[1]:
-         st.markdown("<div style='text-align: center;'>**Predicted Direction**</div>", unsafe_allow_html=True)
-    with hist_pred_cols[2]:
-         st.markdown("<div style='text-align: center;'>**Confidence Score**</div>", unsafe_allow_html=True)
-    with hist_pred_cols[3]:
-         st.markdown("<div style='text-align: center;'>**Actual Outcome**</div>", unsafe_allow_html=True)
-
-    # Display rows, sorting by date descending
-    for index, row in historical_predictions_df.sort_index(ascending=False).iterrows():
-        date_str = index.strftime('%Y-%m-%d') # Format date
-        predicted_direction = row['Predicted_Direction'] if pd.notna(row['Predicted_Direction']) else "N/A"
-        confidence_score = row['Confidence_Score'] if pd.notna(row['Confidence_Score']) else pd.NA # Keep as number/NA for formatting
-        actual_outcome = row['Actual_Outcome'] if pd.notna(row['Actual_Outcome']) else "N/A"
-
-        # Format confidence score as percentage, handle NA
-        confidence_str = f'{confidence_score:.2%}' if pd.notna(confidence_score) else "N/A"
+    # --- Display historical predictions using st.dataframe with formatted confidence score ---
+    # Prepare data for st.dataframe, formatting confidence score as percentage string
+    historical_predictions_display = historical_predictions_df.copy()
+    # Apply formatting only to non-NA confidence scores
+    historical_predictions_display['Confidence_Score'] = historical_predictions_display['Confidence_Score'].apply(lambda x: f'{x:.2%}' if pd.notna(x) else "N/A")
+    # Ensure Actual_Outcome is string for consistent display
+    historical_predictions_display['Actual_Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A')
 
 
-        row_cols = st.columns([1, 2, 2, 2]) # Match header column widths
-
-        with row_cols[0]:
-             st.markdown(f"<div style='text-align: center;'>{date_str}</div>", unsafe_allow_html=True)
-        with row_cols[1]:
-             st.markdown(f"<div style='text-align: center;'>{predicted_direction}</div>", unsafe_allow_html=True)
-        with row_cols[2]:
-             st.markdown(f"<div style='text-align: center;'>{confidence_str}</div>", unsafe_allow_html=True)
-        with row_cols[3]:
-             st.markdown(f"<div style='text-align: center;'>{actual_outcome}</div>", unsafe_allow_html=True)
+    # Display using st.dataframe, sorting by date descending
+    st.dataframe(historical_predictions_display.sort_index(ascending=False))
 
 else:
     st.write("No recorded predictions found.")
