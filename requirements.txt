@@ -1,0 +1,8 @@
+
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+psx-data-reader @ git+https://github.com/MuhammadAmir5670/psx-data-reader.git
+scikit-learn
