@@ -50,6 +50,7 @@ def fetch_raw_data(ticker, data_file):
         st.error(f"An error occurred during raw data fetching: {e}")
         return pd.DataFrame()
 
+# @st.cache_data # Consider caching processed data as well if processing is slow
 def process_data(raw_data):
     """Adds technical indicators and features to the raw data."""
     # st.write("Processing raw data...") # Suppressed
@@ -100,17 +101,24 @@ def process_data(raw_data):
 
         # st.write("Created target variable.") # Suppressed
 
-        # Drop rows with NaN values introduced by lagging and rolling windows (including the last row where Target is NaN)
-        processed_data.dropna(inplace=True)
-        # st.write(f"Processed data shape after dropping NaNs: {processed_data.shape}") # Suppressed
-
+        # --- Modified logic to separate latest day data BEFORE dropping NaNs ---
         if processed_data.empty:
-             st.warning("Processed data is empty after dropping NaNs.")
+             st.warning("Processed data is empty before separating latest day.")
              return pd.DataFrame(), pd.DataFrame()
 
-        # Separate latest day's data - this is the last row where Price_Direction could be calculated
+        # Separate latest day's data (including potential NaNs from lagging/rolling)
         latest_day_data = processed_data.tail(1)
-        historical_data_processed = processed_data.iloc[:-1]
+        historical_data_for_training = processed_data.iloc[:-1].copy() # Use .copy() to avoid SettingWithCopyWarning
+
+        # Drop rows with NaN values introduced by lagging and rolling windows from historical data used for training
+        historical_data_processed = historical_data_for_training.dropna(inplace=False) # Use inplace=False to return new DataFrame
+        # st.write(f"Historical data shape after dropping NaNs: {historical_data_processed.shape}") # Suppressed
+
+        if historical_data_processed.empty:
+             st.warning("Historical data is empty after dropping NaNs.")
+             # If no historical data, also return empty latest_day_data as model training won't happen
+             return pd.DataFrame(), pd.DataFrame()
+
 
         # st.write(f"Separated latest day data. Historical data shape: {historical_data_processed.shape}, Latest day data shape: {latest_day_data.shape}") # Suppressed
 
@@ -125,19 +133,18 @@ def process_data(raw_data):
         return pd.DataFrame(), pd.DataFrame()
 
 
-def train_classification_model(data):
+def train_classification_model(historical_data):
     """Trains a classification model to predict price direction."""
     # st.write("Training classification model...") # Suppressed
-    if data.empty:
+    if historical_data.empty:
         st.warning("No data available to train the model.")
         return None, None
 
     # Define features (X) and target (y) for classification
     # Exclude the 'Target' column when training
-    features_classification = data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1)
-    target_classification = data['Price_Direction']
+    features_classification = historical_data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1)
+    target_classification = historical_data['Price_Direction']
 
-    # Use the last row for prediction, the rest for training
     # Ensure there's enough data for training
     if len(features_classification) < 1: # Need at least one data point for features
          st.warning("Not enough data to train the model.")
@@ -165,18 +172,26 @@ def make_prediction(model, X_latest, model_classes):
         st.warning("Model not trained or no data for prediction.")
         return None, None, None
 
+    # Handle potential NaNs in X_latest by dropping the row if any feature is NaN
+    X_latest_cleaned = X_latest.dropna(inplace=False)
+
+    if X_latest_cleaned.empty:
+        st.warning("Latest data contains NaNs in features required for prediction.")
+        return None, None, None
+
+
     # Predict the direction
-    predicted_direction = model.predict(X_latest)[0]
+    predicted_direction = model.predict(X_latest_cleaned)[0]
 
     # Get prediction probabilities
-    y_prob_classification = model.predict_proba(X_latest)
+    y_prob_classification = model.predict_proba(X_latest_cleaned)
 
     # Get confidence score for the predicted class
     # Find the index of the predicted_direction in the model's classes
     predicted_class_index = model_classes.index(predicted_direction)
     confidence_score = y_prob_classification[0, predicted_class_index]
 
-    return predicted_direction, confidence_score, X_latest.index[0]
+    return predicted_direction, confidence_score, X_latest_cleaned.index[0] # Return the date of the predicted data
 
 
 def load_predictions():
@@ -242,7 +257,7 @@ def load_predictions():
         # Create an empty DataFrame with the expected structure and DatetimeIndex
         try:
             empty_predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label=index_column_name)
-            # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}\") # Suppressed
+            # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}") # Suppressed
         except Exception as save_e:
              st.error(f"Could not save a new empty predictions file to {PREDICTIONS_FILE}: {save_e}")
 
@@ -349,28 +364,40 @@ st.title(f"Stock Price Direction Prediction Dashboard ({STOCK_TICKER})")
 
 st.write("Click the button below to fetch the latest data, update the model, and get a prediction for the next trading day\'s price direction.")
 
-# Fetch raw data initially
-raw_data = fetch_raw_data(STOCK_TICKER, DATA_FILE)
+# Initialize session state for latest_day_data if it doesn't exist
+if 'latest_day_data' not in st.session_state:
+    # Fetch and process data initially only if not in session state
+    raw_data = fetch_raw_data(STOCK_TICKER, DATA_FILE)
+    historical_data_processed, latest_day_data = process_data(raw_data)
+    st.session_state['latest_day_data'] = latest_day_data
+    st.session_state['historical_data_processed'] = historical_data_processed
+else:
+    # Retrieve data from session state on subsequent reruns
+    latest_day_data = st.session_state['latest_day_data']
+    historical_data_processed = st.session_state['historical_data_processed']
+    # Re-fetch raw data on rerun to ensure the chart and raw data table are up-to-date
+    # This will use the cache if not expired
+    raw_data = fetch_raw_data(STOCK_TICKER, DATA_FILE)
 
-# Process data initially and separate historical and latest day
-historical_data_processed, latest_day_data = process_data(raw_data)
 
-# Update actual outcomes for historical predictions when the app loads
-# Pass historical_data_processed to the update function
+# Update actual outcomes for historical predictions when the app loads or reruns
+# Pass historical_data_processed from session state
 historical_predictions_df = update_actual_outcomes(historical_data_processed)
+
 
 # Display the \"Run Analysis and Get Prediction\" button first
 if st.button("Run Analysis and Get Prediction"):
     st.write("Running analysis...") # Keep this to indicate processing started
 
-    if not historical_data_processed.empty and not latest_day_data.empty:
+    # Use historical_data_processed from session state for training
+    if 'historical_data_processed' in st.session_state and not st.session_state['historical_data_processed'].empty and 'latest_day_data' in st.session_state and not st.session_state['latest_day_data'].empty:
         # 3. Train Classification Model
-        model_classification, model_classes = train_classification_model(historical_data_processed)
+        model_classification, model_classes = train_classification_model(st.session_state['historical_data_processed'])
 
         if model_classification is not None:
-            # Prepare latest day features for prediction
+            # Prepare latest day features for prediction from session state
             # Ensure 'Target' and 'Price_Direction' are dropped as they are not features
-            X_latest = latest_day_data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1, errors='ignore')
+            X_latest = st.session_state['latest_day_data'].drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1, errors='ignore')
 
 
             # 4. Make Prediction for the next day
@@ -409,18 +436,20 @@ if st.button("Run Analysis and Get Prediction"):
 
 # Display \"Summary for Today\" section after the button and prediction results
 st.subheader("Summary for Today:")
-if not latest_day_data.empty:
+# Use latest_day_data from session state for displaying the summary
+if 'latest_day_data' in st.session_state and not st.session_state['latest_day_data'].empty:
+    latest_day_data_for_display = st.session_state['latest_day_data']
     # Calculate LDCP (Last Day Closing Price) - which is the Close_Lag1 in latest_day_data
     # Check if Close_Lag1 exists and is not NaN
-    ldcp = latest_day_data['Close_Lag1'].iloc[0] if 'Close_Lag1' in latest_day_data.columns and not pd.isna(latest_day_data['Close_Lag1'].iloc[0]) else "N/A"
+    ldcp = latest_day_data_for_display['Close_Lag1'].iloc[0] if 'Close_Lag1' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Close_Lag1'].iloc[0]) else "N/A"
     # Current price is the Close price of the latest day
-    current_price = latest_day_data['Close'].iloc[0] if 'Close' in latest_day_data.columns and not pd.isna(latest_day_data['Close'].iloc[0]) else "N/A"
+    current_price = latest_day_data_for_display['Close'].iloc[0] if 'Close' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Close'].iloc[0]) else "N/A"
     # Change is Current - LDCP - only calculate if both are valid numbers
     change = current_price - ldcp if isinstance(current_price, (int, float)) and isinstance(ldcp, (int, float)) else "N/A"
-    volume = latest_day_data['Volume'].iloc[0] if 'Volume' in latest_day_data.columns and not pd.isna(latest_day_data['Volume'].iloc[0]) else "N/A"
-    latest_day_open = latest_day_data['Open'].iloc[0] if 'Open' in latest_day_data.columns and not pd.isna(latest_day_data['Open'].iloc[0]) else "N/A"
-    latest_day_high = latest_day_data['High'].iloc[0] if 'High' in latest_day_data.columns and not pd.isna(latest_day_data['High'].iloc[0]) else "N/A"
-    latest_day_low = latest_day_data['Low'].iloc[0] if 'Low' in latest_day_data.columns and not pd.isna(latest_day_data['Low'].iloc[0]) else "N/A"
+    volume = latest_day_data_for_display['Volume'].iloc[0] if 'Volume' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Volume'].iloc[0]) else "N/A"
+    latest_day_open = latest_day_data_for_display['Open'].iloc[0] if 'Open' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Open'].iloc[0]) else "N/A"
+    latest_day_high = latest_day_data_for_display['High'].iloc[0] if 'High' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['High'].iloc[0]) else "N/A"
+    latest_day_low = latest_day_data_for_display['Low'].iloc[0] if 'Low' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Low'].iloc[0]) else "N/A"
 
 
     latest_day_summary_dict = {
@@ -453,8 +482,9 @@ if not raw_data.empty:
     st.line_chart(raw_data['Close'])
     # Display historical data excluding the last day with specified columns, latest entries first
     # Remove time part from the index for display
-    if not historical_data_processed.empty: # Use historical_data_processed for the table as it has features
-        historical_data_display = historical_data_processed[['Open', 'High', 'Low', 'Close', 'Volume', 'MA_20', 'MA_50', 'RSI']].copy()
+    # Use historical_data_processed from session state for the table
+    if 'historical_data_processed' in st.session_state and not st.session_state['historical_data_processed'].empty:
+        historical_data_display = st.session_state['historical_data_processed'][['Open', 'High', 'Low', 'Close', 'Volume', 'MA_20', 'MA_50', 'RSI']].copy()
         historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
         # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values introduced by processing
         historical_data_display = historical_data_display.apply(pd.to_numeric, errors='coerce')
