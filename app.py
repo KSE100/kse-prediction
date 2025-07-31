@@ -416,7 +416,7 @@ if st.button("Run Analysis and Get Prediction"):
                 # The prediction date is the day AFTER the latest data point
                 predicted_date = date_of_latest_data + timedelta(days=1)
 
-                # --- Display prediction for the NEXT trading day using HTML table in markdown ---
+                # --- Display prediction for the NEXT trading day using st.dataframe ---
                 # Format the date for the title
                 day_name = calendar.day_name[predicted_date.weekday()]
                 day_with_suffix = str(predicted_date.day) + ('th' if 11<=predicted_date.day<=13 else {1:'st', 2:'nd', 3:'rd'}.get(predicted_date.day%10, 'th'))
@@ -425,28 +425,15 @@ if st.button("Run Analysis and Get Prediction"):
 
                 st.subheader(prediction_title)
 
-                # Prepare data for HTML table, ensuring confidence score is formatted as percentage string
-                predicted_direction_display = predicted_direction_tomorrow
-                confidence_score_display = f'{confidence_score_tomorrow:.2%}' # Format confidence as percentage string
+                # Prepare data for st.dataframe, ensuring confidence score is formatted as percentage string
+                prediction_summary_dict = {
+                    'Predicted Direction': [predicted_direction_tomorrow],
+                    'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage string
+                }
+                prediction_df = pd.DataFrame(prediction_summary_dict)
 
-                # Construct HTML table string with centering and border styling
-                prediction_html = f"""
-                <table style="width:100%; text-align: center; border-collapse: collapse;">
-                  <thead>
-                    <tr>
-                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Predicted Direction</th>
-                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Confidence Score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style="border: 1px solid #dddddd; padding: 8px;">{predicted_direction_display}</td>
-                      <td style="border: 1px solid #dddddd; padding: 8px;">{confidence_score_display}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                """
-                st.markdown(prediction_html, unsafe_allow_html=True)
+                # Display using st.dataframe with use_container_width and height
+                st.dataframe(prediction_df, use_container_width=True, height=100)
 
 
                 # 5. Store the new prediction
@@ -482,7 +469,7 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     latest_day_high = latest_day_data_for_display['High'].iloc[0] if 'High' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['High'].iloc[0]) else "N/A"
     latest_day_low = latest_day_data_for_display['Low'].iloc[0] if 'Low' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Low'].iloc[0]) else "N/A"
 
-    # Format numerical values to 2 decimal places, handle "N/A"
+    # Format numerical values to 2 decimal places, handle "N/A", return as strings for consistent type in DataFrame
     ldcp_str = f'{ldcp:.2f}' if isinstance(ldcp, (int, float)) else "N/A"
     open_str = f'{latest_day_open:.2f}' if isinstance(latest_day_open, (int, float)) else "N/A"
     high_str = f'{latest_day_high:.2f}' if isinstance(latest_day_high, (int, float)) else "N/A"
@@ -491,35 +478,20 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     change_str = f'{change:.2f}' if isinstance(change, (int, float)) else "N/A"
     volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
-    # Construct HTML table string with centering and border styling
-    summary_html = f"""
-    <table style="width:100%; text-align: center; border-collapse: collapse;">
-      <thead>
-        <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">LDCP</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Open</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">High</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Low</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Current</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Change</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Volume</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{ldcp_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{open_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{high_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{low_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{current_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{change_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">{volume_str}</td>
-        </tr>
-      </tbody>
-    </table>
-    """
-    st.markdown(summary_html, unsafe_allow_html=True)
+    # Create a DataFrame for the summary, ensuring all values are strings for consistent display
+    latest_day_summary_dict = {
+        'LDCP': [ldcp_str],
+        'Open': [open_str],
+        'High': [high_str],
+        'Low': [low_str],
+        'Current': [current_str],
+        'Change': [change_str],
+        'Volume': [volume_str]
+    }
+    latest_day_df = pd.DataFrame(latest_day_summary_dict)
 
+    # Display using st.dataframe with use_container_width and set height
+    st.dataframe(latest_day_df, use_container_width=True, height=100)
 
 else:
     st.write("No data available for the latest day.")
@@ -564,10 +536,10 @@ if not historical_predictions_df.empty:
     historical_predictions_html_rows = """
       <thead>
         <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Date</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Predicted Direction</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Confidence Score</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Actual Outcome</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Date</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Predicted Direction</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Confidence Score</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Actual Outcome</th>
         </tr>
       </thead>
       <tbody>
