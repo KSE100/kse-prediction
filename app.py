@@ -428,8 +428,8 @@ if st.button("Run Analysis and Get Prediction"):
                 }
                 prediction_df = pd.DataFrame(prediction_summary_dict)
 
-                # Display using st.dataframe - alignment controlled by Streamlit
-                st.dataframe(prediction_df)
+                # Display using st.dataframe with use_container_width
+                st.dataframe(prediction_df, use_container_width=True)
 
 
                 # 5. Store the new prediction
@@ -486,8 +486,8 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     }
     latest_day_df = pd.DataFrame(latest_day_summary_dict)
 
-    # Display using st.dataframe - alignment controlled by Streamlit, likely left-aligned by default
-    st.dataframe(latest_day_df)
+    # Display using st.dataframe with use_container_width
+    st.dataframe(latest_day_df, use_container_width=True)
 
 else:
     st.write("No data available for the latest day.")
@@ -534,8 +534,8 @@ if not historical_predictions_df.empty:
     historical_predictions_display['Actual_Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A')
 
 
-    # Display using st.dataframe, sorting by date descending
-    st.dataframe(historical_predictions_display.sort_index(ascending=False))
+    # Display using st.dataframe with use_container_width, sorting by date descending
+    st.dataframe(historical_predictions_display.sort_index(ascending=False), use_container_width=True)
 
 else:
     st.write("No recorded predictions found.")
