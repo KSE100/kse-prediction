@@ -290,7 +290,7 @@ def update_actual_outcomes(historical_data_processed):
              # Use error handling for saving
             try:
                 predictions_df.to_csv(PREDICTIONS_FILE)
-                st.write(f"Updated {updated_count} historical prediction outcomes.") # Keep this message as it's an action confirmation
+                # st.write(f"Updated {updated_count} historical prediction outcomes.") # Suppressed
             except Exception as e:
                 st.error(f"Could not save updated predictions to {PREDICTIONS_FILE}: {e}")
 
@@ -354,28 +354,24 @@ if st.button("Run Analysis and Get Prediction"):
                 store_prediction(predicted_date, predicted_direction_tomorrow, confidence_score_tomorrow)
 
 
-            # Display model performance metrics for the PREVIOUS day in a table
-            # Use latest_day_data for actual outcome and predict on its features (X_latest)
-            if 'Price_Direction' in latest_day_data.columns and not latest_day_data.empty:
-                 # Ensure latest_day_data has a valid date index to display
-                 if not latest_day_data.index.empty:
-                    latest_data_date = latest_day_data.index[0]
-                    st.subheader(f"Model Performance on Previous Day ({latest_data_date.date()}):")
-                    latest_actual_direction = latest_day_data['Price_Direction'].iloc[0]
-
-                    # Predict again on the cleaned X_latest data used for prediction
-                    # Need to re-clean X_latest just for this performance calculation if make_prediction drops NaNs
-                    X_latest_cleaned_for_performance = X_latest.dropna(inplace=False)
-                    if not X_latest_cleaned_for_performance.empty:
-                         latest_predicted_direction = model_classification.predict(X_latest_cleaned_for_performance)[0]
-                         performance_summary = {
-                            'Metric': ['Actual Direction', 'Predicted Direction', 'Accuracy'],
-                            'Value': [latest_actual_direction, latest_predicted_direction, f'{accuracy_score([latest_actual_direction], [latest_predicted_direction]):.2f}']
-                        }
-                         performance_df = pd.DataFrame(performance_summary)
-                         st.dataframe(performance_df.set_index('Metric'))
-                    else:
-                         st.write("Could not calculate performance on previous day due to missing data.")
+            # --- REMOVED: Display model performance metrics for the PREVIOUS day ---
+            # This section was causing a duplicate/unwanted table.
+            # if 'Price_Direction' in latest_day_data.columns and not latest_day_data.empty:
+            #      if not latest_day_data.index.empty:
+            #         latest_data_date = latest_day_data.index[0]
+            #         st.subheader(f"Model Performance on Previous Day ({latest_data_date.date()}):")
+            #         latest_actual_direction = latest_day_data['Price_Direction'].iloc[0]
+            #         X_latest_cleaned_for_performance = X_latest.dropna(inplace=False)
+            #         if not X_latest_cleaned_for_performance.empty:
+            #              latest_predicted_direction = model_classification.predict(X_latest_cleaned_for_performance)[0]
+            #              performance_summary = {
+            #                 'Metric': ['Actual Direction', 'Predicted Direction', 'Accuracy'],
+            #                 'Value': [latest_actual_direction, latest_predicted_direction, f'{accuracy_score([latest_actual_direction], [latest_predicted_direction]):.2f}']
+            #             }
+            #              performance_df = pd.DataFrame(performance_summary)
+            #              st.dataframe(performance_df.set_index('Metric'))
+            #         else:
+            #              st.write("Could not calculate performance on previous day due to missing data.")
 
 
             # Optionally display training accuracy
