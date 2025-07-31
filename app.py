@@ -254,13 +254,13 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
 
 def update_actual_outcomes(historical_data_processed):
     """Updates the actual outcomes for historical predictions."""
-    st.write("Attempting to update historical prediction outcomes...")
+    # st.write("Attempting to update historical prediction outcomes...") # Suppressed
     try:
         # Load existing predictions
         predictions_df = load_predictions()
 
         if predictions_df.empty:
-             st.write("No historical predictions to update.")
+             # st.write("No historical predictions to update.") # Suppressed
              return predictions_df # Return empty if no predictions loaded
 
         # Ensure historical_data_processed index and relevant columns are ready for comparison
@@ -323,11 +323,8 @@ if st.button("Run Analysis and Get Prediction"):
     st.write("Running analysis...") # Keep this to indicate processing started
 
     if not historical_data_processed.empty and not latest_day_data.empty:
-        # Combine historical and latest day data for training purposes
-        data_for_training = pd.concat([historical_data_processed, latest_day_data])
-
         # 3. Train Classification Model
-        model_classification, train_accuracy, model_classes = train_classification_model(data_for_training)
+        model_classification, model_classes = train_classification_model(historical_data_processed)
 
         if model_classification is not None:
             # Prepare latest day features for prediction
@@ -337,12 +334,13 @@ if st.button("Run Analysis and Get Prediction"):
 
             # 4. Make Prediction for the next day
             predicted_direction_tomorrow, confidence_score_tomorrow, date_of_latest_data = make_prediction(model_classification, X_latest, model_classes)
-            predicted_date = date_of_latest_data + timedelta(days=1) # The date the prediction is for
 
-            # Display prediction for the NEXT trading day in a table
-            st.subheader(f"Prediction for {predicted_date.date()}:")
             if predicted_direction_tomorrow is not None:
-                # Restructure prediction data for table with columns as headers
+                # The prediction date is the day AFTER the latest data point
+                predicted_date = date_of_latest_data + timedelta(days=1)
+
+                # Display prediction for the NEXT trading day in a table
+                st.subheader(f"Prediction for {predicted_date.date()}:")
                 prediction_summary_dict = {
                     'Predicted Direction': [predicted_direction_tomorrow],
                     'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage
@@ -350,21 +348,36 @@ if st.button("Run Analysis and Get Prediction"):
                 prediction_df = pd.DataFrame(prediction_summary_dict)
                 st.dataframe(prediction_df)
 
-
-            # 5. Store the new prediction
-            if predicted_direction_tomorrow is not None:
-                 store_prediction(predicted_date, predicted_direction_tomorrow, confidence_score_tomorrow)
-
-            # Reload historical predictions to show the newly stored one immediately (optional)
-            # historical_predictions_df = load_predictions()
+                # 5. Store the new prediction
+                # Store the prediction for the NEXT day
+                store_prediction(predicted_date, predicted_direction_tomorrow, confidence_score_tomorrow)
 
 
-            # --- Removed "Model Performance on Previous Day's Prediction" section as requested ---
-            # st.subheader(f"Model Performance for Previous Day's Prediction (for {evaluation_date}):")
-            # ... (removed code)
+            # Display model performance metrics for the PREVIOUS day in a table
+            # Use latest_day_data for actual outcome and predict on its features (X_latest)
+            if 'Price_Direction' in latest_day_data.columns and not latest_day_data.empty:
+                 # Ensure latest_day_data has a valid date index to display
+                 if not latest_day_data.index.empty:
+                    latest_data_date = latest_day_data.index[0]
+                    st.subheader(f"Model Performance on Previous Day ({latest_data_date.date()}):")
+                    latest_actual_direction = latest_day_data['Price_Direction'].iloc[0]
+
+                    # Predict again on the cleaned X_latest data used for prediction
+                    # Need to re-clean X_latest just for this performance calculation if make_prediction drops NaNs
+                    X_latest_cleaned_for_performance = X_latest.dropna(inplace=False)
+                    if not X_latest_cleaned_for_performance.empty:
+                         latest_predicted_direction = model_classification.predict(X_latest_cleaned_for_performance)[0]
+                         performance_summary = {
+                            'Metric': ['Actual Direction', 'Predicted Direction', 'Accuracy'],
+                            'Value': [latest_actual_direction, latest_predicted_direction, f'{accuracy_score([latest_actual_direction], [latest_predicted_direction]):.2f}']
+                        }
+                         performance_df = pd.DataFrame(performance_summary)
+                         st.dataframe(performance_df.set_index('Metric'))
+                    else:
+                         st.write("Could not calculate performance on previous day due to missing data.")
 
 
-            # Optionally display training accuracy for the main model
+            # Optionally display training accuracy
             # st.write(f"Accuracy on training data: {train_accuracy:.2f}") # Need to pass train_accuracy from train_classification_model
 
 
@@ -378,31 +391,34 @@ if st.button("Run Analysis and Get Prediction"):
 st.subheader("Summary for Today:")
 if not latest_day_data.empty:
     # Calculate LDCP (Last Day Closing Price) - which is the Close_Lag1 in latest_day_data
-    ldcp = latest_day_data['Close_Lag1'].iloc[0]
+    # Check if Close_Lag1 exists and is not NaN
+    ldcp = latest_day_data['Close_Lag1'].iloc[0] if 'Close_Lag1' in latest_day_data.columns and not pd.isna(latest_day_data['Close_Lag1'].iloc[0]) else "N/A"
     # Current price is the Close price of the latest day
-    current_price = latest_day_data['Close'].iloc[0]
-    # Change is Current - LDCP
-    change = current_price - ldcp
-    volume = latest_day_data['Volume'].iloc[0]
+    current_price = latest_day_data['Close'].iloc[0] if 'Close' in latest_day_data.columns and not pd.isna(latest_day_data['Close'].iloc[0]) else "N/A"
+    # Change is Current - LDCP - only calculate if both are valid numbers
+    change = current_price - ldcp if isinstance(current_price, (int, float)) and isinstance(ldcp, (int, float)) else "N/A"
+    volume = latest_day_data['Volume'].iloc[0] if 'Volume' in latest_day_data.columns and not pd.isna(latest_day_data['Volume'].iloc[0]) else "N/A"
+    latest_day_open = latest_day_data['Open'].iloc[0] if 'Open' in latest_day_data.columns and not pd.isna(latest_day_data['Open'].iloc[0]) else "N/A"
+    latest_day_high = latest_day_data['High'].iloc[0] if 'High' in latest_day_data.columns and not pd.isna(latest_day_data['High'].iloc[0]) else "N/A"
+    latest_day_low = latest_day_data['Low'].iloc[0] if 'Low' in latest_day_data.columns and not pd.isna(latest_day_data['Low'].iloc[0]) else "N/A"
 
-    # Restructure the data for the table with metrics as columns
-    # Ensure no extra columns are added
+
     latest_day_summary_dict = {
         'LDCP': [ldcp],
-        'Open': [latest_day_data['Open'].iloc[0]],
-        'High': [latest_day_data['High'].iloc[0]],
-        'Low': [latest_day_data['Low'].iloc[0]],
+        'Open': [latest_day_open],
+        'High': [latest_day_high],
+        'Low': [latest_day_low],
         'Current': [current_price],
         'Change': [change],
         'Volume': [volume]
     }
     latest_day_df = pd.DataFrame(latest_day_summary_dict)
 
-    # Format numerical columns
+    # Format numerical columns, handling "N/A"
     for col in ['LDCP', 'Open', 'High', 'Low', 'Current', 'Change']:
-        latest_day_df[col] = latest_day_df[col].apply(lambda x: f'{x:.2f}')
-    latest_day_df['Volume'] = latest_day_df['Volume'].apply(lambda x: f'{float(x):,.0f}')
-
+        latest_day_df[col] = latest_day_df[col].apply(lambda x: f'{x:.2f}' if isinstance(x, (int, float)) else x)
+    # Format Volume differently if needed, e.g., without decimals or with commas, handling "N/A"
+    latest_day_df.loc[latest_day_df.index, 'Volume'] = latest_day_df['Volume'].apply(lambda x: f'{float(x):,.0f}' if isinstance(x, (int, float)) else x)
 
     st.dataframe(latest_day_df) # Display the restructured dataframe
 
@@ -412,15 +428,21 @@ else:
 
 # Display historical stock data and charts as the last section
 st.subheader("Historical Stock Data:")
-if not historical_data_processed.empty:
-    st.line_chart(historical_data_processed['Close'])
+# Use the original raw_data for the chart and display
+if not raw_data.empty:
+    st.line_chart(raw_data['Close'])
     # Display historical data excluding the last day with specified columns, latest entries first
     # Remove time part from the index for display
-    historical_data_display = historical_data_processed[['Open', 'High', 'Low', 'Close', 'Volume', 'MA_20', 'MA_50', 'RSI']].copy()
-    historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
-    st.dataframe(historical_data_display.astype(float).applymap('{:.2f}'.format).sort_index(ascending=False))
+    if not historical_data_processed.empty: # Use historical_data_processed for the table as it has features
+        historical_data_display = historical_data_processed[['Open', 'High', 'Low', 'Close', 'Volume', 'MA_20', 'MA_50', 'RSI']].copy()
+        historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
+        # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values introduced by processing
+        historical_data_display = historical_data_display.apply(pd.to_numeric, errors='coerce')
+        st.dataframe(historical_data_display.applymap('{:.2f}'.format).sort_index(ascending=False))
+    else:
+         st.write("No sufficient historical stock data available for the table after processing.")
 else:
-    st.write("No sufficient historical stock data available to display.")
+     st.write("No raw historical stock data file found.")
 
 # Display historical predictions and outcomes
 st.subheader("Historical Predictions and Outcomes:")
