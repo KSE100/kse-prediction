@@ -429,14 +429,13 @@ if st.button("Run Analysis and Get Prediction"):
                 predicted_direction_display = predicted_direction_tomorrow
                 confidence_score_display = f'{confidence_score_tomorrow:.2%}' # Format confidence as percentage string
 
-                # Construct HTML table string with centering and border styling
-                # Reverted to the structure that caused the white header issue as requested
+                # Construct HTML table string with centering and border styling - Removed background-color
                 prediction_html = f"""
                 <table style="width:100%; text-align: center; border-collapse: collapse;">
                   <thead>
                     <tr>
-                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Predicted Direction</th>
-                      <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Confidence Score</th>
+                      <th style="border: 1px solid #dddddd; padding: 8px;">Predicted Direction</th>
+                      <th style="border: 1px solid #dddddd; padding: 8px;">Confidence Score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -492,19 +491,18 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     change_str = f'{change:.2f}' if isinstance(change, (int, float)) else "N/A"
     volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
-    # Construct HTML table string with centering and border styling
-    # Reverted to the structure that caused the white header issue as requested
+    # Construct HTML table string with centering and border styling - Removed background-color
     summary_html = f"""
     <table style="width:100%; text-align: center; border-collapse: collapse;">
       <thead>
         <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">LDCP</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Open</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">High</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Low</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Current</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Change</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; background-color: #f2f2f2;">Volume</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">LDCP</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Open</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">High</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Low</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Current</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Change</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Volume</th>
         </tr>
       </thead>
       <tbody>
@@ -566,10 +564,10 @@ if not historical_predictions_df.empty:
     historical_predictions_html_content = """
       <thead>
         <tr>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Date</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Predicted Direction</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Confidence Score</th>
-          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center; background-color: #f2f2f2;">Actual Outcome</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Date</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Predicted Direction</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Confidence Score</th>
+          <th style="border: 1px solid #dddddd; padding: 8px; text-align: center;">Actual Outcome</th>
         </tr>
       </thead>
       <tbody>
@@ -598,6 +596,7 @@ if not historical_predictions_df.empty:
     # Close the tbody and table tags
     historical_predictions_html_content += """
       </tbody>
+    </table>
     """
     # Construct the full HTML table string
     full_historical_predictions_html = f"""
