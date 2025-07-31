@@ -232,6 +232,10 @@ def load_predictions():
                 'Actual_Outcome': 'string'
             })
 
+            # Drop any completely blank rows that might have been introduced
+            predictions_df.dropna(how='all', inplace=True)
+
+
             # Check if the loaded DataFrame is empty (e.g., file was created but empty)
             if predictions_df.empty:
                 # st.write(f"Loaded empty predictions file from {PREDICTIONS_FILE}. Starting with empty DataFrame.") # Suppressed
@@ -297,6 +301,8 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
             predictions_df.sort_index(inplace=True)
             # Use error handling for saving
             try:
+                # Drop any blank rows before saving
+                predictions_df.dropna(how='all', inplace=True)
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
                 st.write(f"Prediction for {prediction_date.date()} stored.") # Keep this message as it's an action confirmation
@@ -344,6 +350,8 @@ def update_actual_outcomes(historical_data_processed):
         if updated_count > 0:
              # Use error handling for saving
             try:
+                # Drop any blank rows before saving
+                predictions_df.dropna(how='all', inplace=True)
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
                 # st.write(f"Updated {updated_count} historical prediction outcomes.") # Suppressed
@@ -408,7 +416,7 @@ if st.button("Run Analysis and Get Prediction"):
                 # The prediction date is the day AFTER the latest data point
                 predicted_date = date_of_latest_data + timedelta(days=1)
 
-                # --- Display prediction for the NEXT trading day using st.dataframe with formatted title and data ---
+                # --- Display prediction for the NEXT trading day using HTML table in markdown ---
                 # Format the date for the title
                 day_name = calendar.day_name[predicted_date.weekday()]
                 day_with_suffix = str(predicted_date.day) + ('th' if 11<=predicted_date.day<=13 else {1:'st', 2:'nd', 3:'rd'}.get(predicted_date.day%10, 'th'))
@@ -417,16 +425,28 @@ if st.button("Run Analysis and Get Prediction"):
 
                 st.subheader(prediction_title)
 
-                # Prepare data for st.dataframe, ensuring confidence score is formatted as percentage string
-                prediction_summary_dict = {
-                    'Predicted Direction': [predicted_direction_tomorrow],
-                    'Confidence Score': [f'{confidence_score_tomorrow:.2%}'] # Format confidence as percentage string
-                }
-                prediction_df = pd.DataFrame(prediction_summary_dict)
+                # Prepare data for HTML table, ensuring confidence score is formatted as percentage string
+                predicted_direction_display = predicted_direction_tomorrow
+                confidence_score_display = f'{confidence_score_tomorrow:.2%}' # Format confidence as percentage string
 
-                # Display using st.dataframe with use_container_width
-                # Added height to force horizontal scrolling if content exceeds width
-                st.dataframe(prediction_df, use_container_width=True, height=100)
+                # Construct HTML table string with centering
+                prediction_html = f"""
+                <table style="width:100%; text-align: center; border-collapse: collapse;">
+                  <thead>
+                    <tr>
+                      <th style="border: 1px solid #dddddd; padding: 8px;">Predicted Direction</th>
+                      <th style="border: 1px solid #dddddd; padding: 8px;">Confidence Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style="border: 1px solid #dddddd; padding: 8px;">{predicted_direction_display}</td>
+                      <td style="border: 1px solid #dddddd; padding: 8px;">{confidence_score_display}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                """
+                st.markdown(prediction_html, unsafe_allow_html=True)
 
 
                 # 5. Store the new prediction
@@ -462,7 +482,7 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     latest_day_high = latest_day_data_for_display['High'].iloc[0] if 'High' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['High'].iloc[0]) else "N/A"
     latest_day_low = latest_day_data_for_display['Low'].iloc[0] if 'Low' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Low'].iloc[0]) else "N/A"
 
-    # Format numerical values to 2 decimal places, handle "N/A", return as strings for consistent type in DataFrame
+    # Format numerical values to 2 decimal places, handle "N/A"
     ldcp_str = f'{ldcp:.2f}' if isinstance(ldcp, (int, float)) else "N/A"
     open_str = f'{latest_day_open:.2f}' if isinstance(latest_day_open, (int, float)) else "N/A"
     high_str = f'{latest_day_high:.2f}' if isinstance(latest_day_high, (int, float)) else "N/A"
@@ -471,20 +491,35 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
     change_str = f'{change:.2f}' if isinstance(change, (int, float)) else "N/A"
     volume_str = f'{float(volume):,.0f}' if isinstance(volume, (int, float)) else "N/A" # Format volume with commas
 
-    # Create a DataFrame for the summary, ensuring all values are strings for consistent display
-    latest_day_summary_dict = {
-        'LDCP': [ldcp_str],
-        'Open': [open_str],
-        'High': [high_str],
-        'Low': [low_str],
-        'Current': [current_str],
-        'Change': [change_str],
-        'Volume': [volume_str]
-    }
-    latest_day_df = pd.DataFrame(latest_day_summary_dict)
+    # Construct HTML table string with centering
+    summary_html = f"""
+    <table style="width:100%; text-align: center; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="border: 1px solid #dddddd; padding: 8px;">LDCP</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Open</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">High</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Low</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Current</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Change</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Volume</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{ldcp_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{open_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{high_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{low_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{current_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{change_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{volume_str}</td>
+        </tr>
+      </tbody>
+    </table>
+    """
+    st.markdown(summary_html, unsafe_allow_html=True)
 
-    # Display using st.dataframe with use_container_width and set height to force horizontal scrolling if needed
-    st.dataframe(latest_day_df, use_container_width=True, height=100)
 
 else:
     st.write("No data available for the latest day.")
@@ -503,8 +538,9 @@ if not raw_data.empty:
         historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
         # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values introduced by processing
         historical_data_display = historical_data_display.apply(pd.to_numeric, errors='coerce')
-        # Display historical data with use_container_width and set height
-        st.dataframe(historical_data_display.applymap('{:.2f}'.format).sort_index(ascending=False), use_container_width=True, height=300) # Set a larger height for historical data
+        # Display historical data using st.dataframe - keeping this as is for now, as the HTML approach for large tables can be complex
+        # and the user's main concern is the other smaller tables. We can revisit if this historical table also has issues.
+        st.dataframe(historical_data_display.applymap('{:.2f}'.format).sort_index(ascending=False), use_container_width=True, height=300)
     else:
          st.write("No sufficient historical stock data available for the table after processing.")
 else:
@@ -523,17 +559,46 @@ if not historical_predictions_df.empty:
         historical_accuracy = accuracy_score(evaluated_predictions['Actual_Outcome'].astype(str), evaluated_predictions['Predicted_Direction'].astype(str))
         st.write(f"Historical Prediction Accuracy (evaluated outcomes): {historical_accuracy:.2%}") # Display as percentage
 
-    # --- Display historical predictions using st.dataframe with formatted confidence score ---
-    # Prepare data for st.dataframe, formatting confidence score as percentage string
-    historical_predictions_display = historical_predictions_df.copy()
-    # Apply formatting only to non-NA confidence scores
-    historical_predictions_display['Confidence_Score'] = historical_predictions_display['Confidence_Score'].apply(lambda x: f'{x:.2%}' if pd.notna(x) else "N/A")
-    # Ensure Actual_Outcome is string for consistent display
-    historical_predictions_display['Actual_Outcome'] = historical_predictions_display['Actual_Outcome'].astype(str).replace('NA', 'N/A')
+    # --- Display historical predictions using HTML table in markdown ---
+    # Construct HTML table string with centering
+    historical_predictions_html = """
+    <table style="width:100%; text-align: center; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Date</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Predicted Direction</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Confidence Score</th>
+          <th style="border: 1px solid #dddddd; padding: 8px;">Actual Outcome</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
 
+    # Add rows, sorting by date descending
+    for index, row in historical_predictions_df.sort_index(ascending=False).iterrows():
+        date_str = index.strftime('%Y-%m-%d') # Format date
+        predicted_direction = row['Predicted_Direction'] if pd.notna(row['Predicted_Direction']) else "N/A"
+        confidence_score = row['Confidence_Score'] if pd.notna(row['Confidence_Score']) else pd.NA # Keep as number/NA for formatting
+        actual_outcome = row['Actual_Outcome'] if pd.notna(row['Actual_Outcome']) else "N/A"
 
-    # Display using st.dataframe with use_container_width, sorting by date descending and setting height
-    st.dataframe(historical_predictions_display.sort_index(ascending=False), use_container_width=True, height=300) # Set a larger height for historical data
+        # Format confidence score as percentage, handle NA
+        confidence_str = f'{confidence_score:.2%}' if pd.notna(confidence_score) else "N/A"
+
+        historical_predictions_html += f"""
+        <tr>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{date_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{predicted_direction}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{confidence_str}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{actual_outcome}</td>
+        </tr>
+        """
+
+    historical_predictions_html += """
+      </tbody>
+    </table>
+    """
+    st.markdown(historical_predictions_html, unsafe_allow_html=True)
+
 
 else:
     st.write("No recorded predictions found.")
