@@ -199,14 +199,14 @@ def load_predictions():
                 if 'Actual_Outcome' not in predictions_df.columns: predictions_df['Actual_Outcome'] = pd.Series(dtype='string')
 
 
-                st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}")
+                # st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}") # Suppressed
                 return predictions_df
             except Exception as e:
                 st.warning(f"Could not read {PREDICTIONS_FILE} due to error: {e}. Returning empty predictions DataFrame.")
                 # Return an empty DataFrame with the expected structure and DatetimeIndex
                 return pd.DataFrame(columns=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome']).astype({'Predicted_Direction': 'string', 'Confidence_Score': 'float64', 'Actual_Outcome': 'string'}).set_index(pd.to_datetime([]).rename('Date'))
         else:
-            st.write("No historical predictions file found. Starting with empty predictions DataFrame.")
+            # st.write("No historical predictions file found. Starting with empty predictions DataFrame.") # Suppressed
             # Return an empty DataFrame with the expected structure and DatetimeIndex
             return pd.DataFrame(columns=['Predicted_Direction', 'Confidence_Score', 'Actual_Outcome']).astype({'Predicted_Direction': 'string', 'Confidence_Score': 'float64', 'Actual_Outcome': 'string'}).set_index(pd.to_datetime([]).rename('Date'))
     except Exception as e:
@@ -224,7 +224,8 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
         # Add the new prediction
         # Check if a prediction for this date already exists
         if prediction_date in predictions_df.index:
-             st.write(f"Prediction for {prediction_date.date()} already exists. Skipping storage of new prediction.")
+             # st.write(f"Prediction for {prediction_date.date()} already exists. Skipping storage of new prediction.") # Suppressed
+             pass # Suppress message
         else:
             new_prediction = pd.DataFrame([{
                 'Predicted_Direction': predicted_direction,
@@ -243,7 +244,7 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
             # Use error handling for saving
             try:
                 predictions_df.to_csv(PREDICTIONS_FILE)
-                st.write(f"Prediction for {prediction_date.date()} stored.")
+                st.write(f"Prediction for {prediction_date.date()} stored.") # Keep this message as it's an action confirmation
             except Exception as e:
                  st.error(f"Could not save prediction to {PREDICTIONS_FILE}: {e}")
 
@@ -289,7 +290,7 @@ def update_actual_outcomes(historical_data_processed):
              # Use error handling for saving
             try:
                 predictions_df.to_csv(PREDICTIONS_FILE)
-                st.write(f"Updated {updated_count} historical prediction outcomes.")
+                st.write(f"Updated {updated_count} historical prediction outcomes.") # Keep this message as it's an action confirmation
             except Exception as e:
                 st.error(f"Could not save updated predictions to {PREDICTIONS_FILE}: {e}")
 
