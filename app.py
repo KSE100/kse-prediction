@@ -666,7 +666,7 @@ if not historical_predictions_df.empty:
     if display_columns:
         historical_predictions_display = historical_predictions_display[display_columns]
     else:
-        st.warning("Could not find required columns for historical predictions display after processing.\")",
+        st.warning("Could not find required columns for historical predictions display after processing.")
         historical_predictions_display = pd.DataFrame() # Ensure it's an empty DataFrame if columns are missing
 
 
