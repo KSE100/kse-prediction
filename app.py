@@ -78,7 +78,8 @@ def load_and_update_historical_data(ticker):
 
     # 3. Fetch new data from PSX up to today
     # Ensure fetch_start_date is not in the future
-    fetch_end_date = date.today()
+    # Modified to fetch data up to YESTERDAY to avoid incomplete current day's data
+    fetch_end_date = date.today() - timedelta(days=1)
     if fetch_start_date <= fetch_end_date:
          new_data = fetch_raw_data_from_psx(ticker, fetch_start_date, fetch_end_date)
 
@@ -161,9 +162,14 @@ def process_data(raw_data):
              st.warning("Processed data is empty before separating latest day.")
              return pd.DataFrame(), pd.DataFrame()
 
-        # Separate latest day's data (including potential NaNs from lagging/rolling)
-        latest_day_data = processed_data.tail(1)
-        historical_data_for_training = processed_data.iloc[:-1].copy() # Use .copy() to avoid SettingWithCopyWarning
+        # Separate the last complete day's data for prediction.
+        # Ensure we have at least two rows to get the latest complete day and the day before for LDCP.
+        if len(processed_data) < 2:
+             st.warning("Not enough data to separate latest day for prediction.")
+             return processed_data.dropna(inplace=False), pd.DataFrame() # Return processed data and empty latest day data
+
+        latest_day_data = processed_data.tail(1) # This is the *latest* data point, potentially incomplete
+        historical_data_for_training = processed_data.iloc[:-1].copy() # Use data UP TO the second to last row for training
 
         # Drop rows with NaN values introduced by lagging and rolling windows from historical data used for training
         historical_data_processed = historical_data_for_training.dropna(inplace=False) # Use inplace=False to return new DataFrame
@@ -181,6 +187,8 @@ def process_data(raw_data):
         # processed_data.to_csv(PROCESSED_DATA_FILE)
         # st.write(f"Processed data saved to {PROCESSED_DATA_FILE}")
 
+        # Return historical_data_processed for the table (excluding the latest day)
+        # and latest_day_data for prediction features (using the latest day's data)
         return historical_data_processed, latest_day_data
 
     except Exception as e:
@@ -447,7 +455,12 @@ st.write("Click the button below to fetch the latest data, update the model, and
 # This block is outside the button, so data is loaded/processed on each app rerun
 # The fetch_raw_data_from_psx function now has a reduced TTL cache
 raw_data = load_and_update_historical_data(STOCK_TICKER) # Use the new function to load/update local data
-historical_data_processed, latest_day_data = process_data(raw_data)
+
+# Filter out the latest incomplete day's data before processing for historical view and training
+# raw_data should now contain data up to yesterday
+historical_data_for_display_and_processing = raw_data.copy()
+
+historical_data_processed, latest_day_data = process_data(historical_data_for_display_and_processing)
 
 # Store in session state for potential use in other parts of the app if needed,
 # though the primary data source is now the local file via raw_data
@@ -542,16 +555,17 @@ if st.button("Run Analysis and Get Prediction"):
 # Clarify label to indicate it's the latest available data from the source
 st.subheader("Summary for Last Available Trading Day:") # MODIFIED LABEL HERE
 # Use latest_day_data from the processed data (which comes from the updated local file)
-if not latest_day_data.empty:
-    latest_day_data_for_display = latest_day_data
+if not raw_data.empty: # Use raw_data which now contains data up to yesterday
+    latest_day_data_for_display = raw_data.tail(1) # Get the last complete day's data
 
     # Calculate and format the summary data points
     # Check if required columns exist before accessing them
-    # Corrected LDCP calculation to use the 'Close' value from the second to last row of raw_data
-    # Ensure raw_data has at least two rows before accessing index -2
+    # LDCP is the closing price of the second to last day
     ldcp = raw_data['Close'].iloc[-2] if len(raw_data) >= 2 and 'Close' in raw_data.columns and not pd.isna(raw_data['Close'].iloc[-2]) else "N/A"
 
+    # Current price is the closing price of the last complete day
     current_price = latest_day_data_for_display['Close'].iloc[0] if 'Close' in latest_day_data_for_display.columns and not latest_day_data_for_display['Close'].empty and not pd.isna(latest_day_data_for_display['Close'].iloc[0]) else "N/A"
+
     change = current_price - ldcp if isinstance(current_price, (int, float)) and isinstance(ldcp, (int, float)) else "N/A"
     volume = latest_day_data_for_display['Volume'].iloc[0] if 'Volume' in latest_day_data_for_display.columns and not latest_day_data_for_display['Volume'].empty and not pd.isna(latest_day_data_for_display['Volume'].iloc[0]) else "N/A"
     latest_day_open = latest_day_data_for_display['Open'].iloc[0] if 'Open' in latest_day_data_for_display.columns and not latest_day_data_for_display['Open'].empty and not pd.isna(latest_day_data_for_display['Open'].iloc[0]) else "N/A"
@@ -605,13 +619,13 @@ else:
 # Display historical stock data and charts as the last section
 st.subheader("Historical Stock Data:")
 # Use the combined local historical data for the chart and display
-if not raw_data.empty: # raw_data now holds the combined local historical data
-    st.line_chart(raw_data['Close'])
+if not historical_data_for_display_and_processing.empty: # Use the data filtered to exclude today
+    st.line_chart(historical_data_for_display_and_processing['Close'])
     # Display historical data with specified columns, latest entries first
-    # Use raw_data for the table to ensure the latest day is included
-    if not raw_data.empty:
+    # Use historical_data_for_display_and_processing for the table
+    if not historical_data_for_display_and_processing.empty:
         # Display historical data with specified columns, excluding technical indicators for simplicity and to avoid potential NaN issues on the latest day
-        historical_data_display = raw_data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+        historical_data_display = historical_data_for_display_and_processing[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
         historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
         # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values
         historical_data_display = historical_data_display.apply(pd.to_numeric, errors='coerce')
