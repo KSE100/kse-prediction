@@ -12,44 +12,98 @@ import calendar # Import calendar for day name
 
 # --- Configuration ---
 STOCK_TICKER = "UBL"
-DATA_FILE = os.path.join("data", "KSE30_raw_data.csv") # Save raw data in the data directory relative to app.py
+# DATA_FILE = os.path.join("data", "KSE30_raw_data.csv") # No longer used for main data storage
+# Update paths to be relative within the new app directory structure
 PREDICTIONS_FILE = os.path.join("data", "predictions.csv") # Save predictions file in the data directory relative to app.py
+LOCAL_HISTORICAL_DATA_FILE = os.path.join("data", "local_historical_data.csv") # File for persistent historical data
 
 
 # --- Helper Functions ---
 
-@st.cache_data(ttl=timedelta(hours=12)) # Cache raw data fetching
-def fetch_raw_data(ticker, data_file):
-    """Fetches raw historical data and saves it."""
-    # st.write(f"Attempting to fetch raw data for {ticker}...") # Suppressed
+# Reduce cache TTL to 1 hour to fetch more recent data more frequently
+@st.cache_data(ttl=timedelta(hours=1)) # MODIFIED TTL HERE
+def fetch_raw_data_from_psx(ticker, start_date, end_date):
+    """Fetches raw historical data from PSX for a given date range."""
+    # st.write(f"Attempting to fetch raw data for {ticker} from {start_date} to {end_date} from PSX...") # Suppressed
     try:
-        two_years_ago = date.today() - timedelta(days=730) # Approx 2 years
-        raw_data = stocks(ticker, start=two_years_ago, end=date.today())
+        # CORRECTED the psx.stocks() call to use positional arguments for dates
+        raw_data = stocks(ticker, start_date, end_date) # CORRECTED CALL HERE
 
         if raw_data.empty:
-            st.error(f"Could not fetch raw historical data for {ticker}.")
+            # st.warning(f"Could not fetch raw historical data for {ticker} from {start_date} to {end_date} from PSX.") # Suppressed
             return pd.DataFrame()
 
-        # st.success(f"Successfully fetched {len(raw_data)} days of raw historical data.") # Suppressed
-
-        # Save raw data - Use an absolute path here based on where the script is expected to run
-        # When deployed, Streamlit Sharing places the app in the root, so relative paths like "data/..." work.
-        # For Colab execution of this cell, need to consider the current directory.
-        # However, the functions are written assuming relative paths when run within the Streamlit app context.
-        # Let's keep the relative path logic within functions and relying on Streamlit's handling.
-        # Ensuring the directory exists is key. The os.makedirs call above handles absolute creation.
-        # The to_csv inside the function will write relative to the current working directory of the Streamlit app.
-
-        # Ensure the directory exists relative to the app's run location (handled by os.makedirs above)
-        # Saving with relative path assumes the script is run from the project_dir
-        raw_data.to_csv(data_file)
-        # st.write(f"Raw data saved to {data_file}") # Suppressed
+        # st.success(f"Successfully fetched {len(raw_data)} days of raw historical data from PSX.") # Suppressed
 
         return raw_data
 
     except Exception as e:
-        st.error(f"An error occurred during raw data fetching: {e}")
+        st.error(f"An error occurred during raw data fetching from PSX: {e}")
         return pd.DataFrame()
+
+# New function to load and update local historical data
+def load_and_update_historical_data(ticker):
+    """Loads local historical data and updates it with new data from PSX."""
+    # Paths are relative to the app.py location, so this should create data dir inside /content/my_stock_app
+    os.makedirs(os.path.dirname(LOCAL_HISTORICAL_DATA_FILE), exist_ok=True)
+    local_data = pd.DataFrame()
+    last_local_date = None
+
+    # 1. Load existing local data if available
+    if os.path.exists(LOCAL_HISTORICAL_DATA_FILE):
+        try:
+            # Assume Date is the index
+            local_data = pd.read_csv(LOCAL_HISTORICAL_DATA_FILE, index_col='Date', parse_dates=['Date'])
+            local_data.index = pd.to_datetime(local_data.index)
+            if not local_data.empty:
+                last_local_date = local_data.index.max().date()
+                # st.write(f"Loaded {len(local_data)} days of historical data from local file. Last date: {last_local_date}") # Suppressed
+            else:
+                 # st.write("Local historical data file is empty.") # Suppressed
+                 pass # Suppress message
+        except Exception as e:
+            st.warning(f"Could not load local historical data from {LOCAL_HISTORICAL_DATA_FILE}: {e}. Starting fresh.")
+            local_data = pd.DataFrame() # Start with empty if loading fails
+
+    # 2. Determine start date for fetching new data from PSX
+    if last_local_date:
+        # Fetch from the day after the last local date
+        fetch_start_date = last_local_date + timedelta(days=1)
+        # st.write(f"Fetching new data from PSX starting from: {fetch_start_date}") # Suppressed
+    else:
+        # If no local data, fetch for the last ~2 years
+        fetch_start_date = date.today() - timedelta(days=730)
+        # st.write(f"No local data found. Fetching ~2 years of data from PSX starting from: {fetch_start_date}") # Suppressed
+
+
+    # 3. Fetch new data from PSX up to today
+    # Ensure fetch_start_date is not in the future
+    fetch_end_date = date.today()
+    if fetch_start_date <= fetch_end_date:
+         new_data = fetch_raw_data_from_psx(ticker, fetch_start_date, fetch_end_date)
+
+         if not new_data.empty:
+            # 4. Append new data to local data
+            # Ensure indices are datetime for proper concatenation
+            new_data.index = pd.to_datetime(new_data.index)
+            local_data = pd.concat([local_data, new_data[~new_data.index.isin(local_data.index)]]) # Avoid duplicate dates
+            local_data.sort_index(inplace=True) # Keep data sorted by date
+            # 5. Save the updated data back to the local file
+            try:
+                local_data.to_csv(LOCAL_HISTORICAL_DATA_FILE, index=True, index_label='Date')
+                # st.write(f"Updated historical data saved to {LOCAL_HISTORICAL_DATA_FILE}") # Suppressed
+            except Exception as e:
+                st.error(f"An error occurred while saving updated historical data: {e}")
+         else:
+              # st.write("No new data fetched from PSX.") # Suppressed
+              pass # Suppress message
+    else:
+         # st.write("Fetch start date is in the future. No new data to fetch.") # Suppressed
+         pass # Suppress message
+
+
+    return local_data # Return the combined local historical data
+
 
 # @st.cache_data # Consider caching processed data as well if processing is slow
 def process_data(raw_data):
@@ -197,7 +251,7 @@ def make_prediction(model, X_latest, model_classes):
 
 def load_predictions():
     """Loads historical predictions from a CSV file."""
-    # Ensure the data directory exists before trying to read or write
+    # Ensure the data directory exists relative to the app location
     os.makedirs(os.path.dirname(PREDICTIONS_FILE), exist_ok=True)
 
     # Define the expected columns for the predictions DataFrame
@@ -237,7 +291,7 @@ def load_predictions():
                 if col in predictions_df.columns: # Add check if column exists
                     predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
 
-            # Drop rows where Predicted_Direction is NA - MODIFIED THIS LINE
+            # Drop rows where Predicted_Direction is NA
             predictions_df.dropna(subset=['Predicted_Direction'], inplace=True)
 
 
@@ -310,7 +364,7 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
                 for col in ['Predicted_Direction', 'Actual_Outcome']:
                      if col in predictions_df.columns: # Add check if column exists
                         predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
-                # Drop rows where Predicted_Direction is NA - MODIFIED THIS LINE
+                # Drop rows where Predicted_Direction is NA
                 predictions_df.dropna(subset=['Predicted_Direction'], inplace=True)
 
                 # Save with index=True to ensure the 'Date' index is written as a column
@@ -363,7 +417,7 @@ def update_actual_outcomes(historical_data_processed):
                 for col in ['Predicted_Direction', 'Actual_Outcome']:
                      if col in predictions_df.columns: # Add check if column exists
                         predictions_df.loc[:, col] = predictions_df[col].replace(r'^\s*$', pd.NA, regex=True)
-                # Drop rows where Predicted_Direction is NA - MODIFIED THIS LINE
+                # Drop rows where Predicted_Direction is NA
                 predictions_df.dropna(subset=['Predicted_Direction'], inplace=True)
 
                 # Save with index=True to ensure the 'Date' index is written as a column
@@ -387,24 +441,21 @@ st.title(f"Stock Price Direction Prediction Dashboard ({STOCK_TICKER})")
 
 st.write("Click the button below to fetch the latest data, update the model, and get a prediction for the next trading day\'s price direction.")
 
-# Initialize session state for latest_day_data if it doesn't exist
-if 'latest_day_data' not in st.session_state:
-    # Fetch and process data initially only if not in session state
-    raw_data = fetch_raw_data(STOCK_TICKER, DATA_FILE)
-    historical_data_processed, latest_day_data = process_data(raw_data)
-    st.session_state['latest_day_data'] = latest_day_data
-    st.session_state['historical_data_processed'] = historical_data_processed
-else:
-    # Retrieve data from session state on subsequent reruns
-    latest_day_data = st.session_state['latest_day_data']
-    historical_data_processed = st.session_state['historical_data_processed']
-    # Re-fetch raw data on rerun to ensure the chart and raw data table are up-to-date
-    # This will use the cache if not expired
-    raw_data = fetch_raw_data(STOCK_TICKER, DATA_FILE)
+# Initialize session state for latest_day_data and historical_data_processed
+# Fetch and process data initially only if not in session state
+# This block is outside the button, so data is loaded/processed on each app rerun
+# The fetch_raw_data_from_psx function now has a reduced TTL cache
+raw_data = load_and_update_historical_data(STOCK_TICKER) # Use the new function to load/update local data
+historical_data_processed, latest_day_data = process_data(raw_data)
+
+# Store in session state for potential use in other parts of the app if needed,
+# though the primary data source is now the local file via raw_data
+st.session_state['latest_day_data'] = latest_day_data
+st.session_state['historical_data_processed'] = historical_data_processed
 
 
 # Update actual outcomes for historical predictions when the app loads or reruns
-# Pass historical_data_processed from session state
+# Pass historical_data_processed which now includes the latest data from PSX
 historical_predictions_df = update_actual_outcomes(historical_data_processed)
 
 
@@ -412,15 +463,15 @@ historical_predictions_df = update_actual_outcomes(historical_data_processed)
 if st.button("Run Analysis and Get Prediction"):
     st.write("Running analysis...") # Keep this to indicate processing started
 
-    # Use historical_data_processed from session state for training
-    if 'historical_data_processed' in st.session_state and not st.session_state['historical_data_processed'].empty and 'latest_day_data' in st.session_state and not st.session_state['latest_day_data'].empty:
+    # Use historical_data_processed from the updated local file for training
+    if not historical_data_processed.empty and not latest_day_data.empty:
         # 3. Train Classification Model
-        model_classification, model_classes = train_classification_model(st.session_state['historical_data_processed'])
+        model_classification, model_classes = train_classification_model(historical_data_processed)
 
         if model_classification is not None:
-            # Prepare latest day features for prediction from session state
+            # Prepare latest day features for prediction from the latest_day_data
             # Ensure 'Target' and 'Price_Direction' are dropped as they are not features
-            X_latest = st.session_state['latest_day_data'].drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1, errors='ignore')
+            X_latest = latest_day_data.drop(['Open', 'High', 'Low', 'Close', 'Volume', 'Target', 'Price_Direction'], axis=1, errors='ignore')
 
 
             # 4. Make Prediction for the next day
@@ -482,19 +533,22 @@ if st.button("Run Analysis and Get Prediction"):
         st.error("Insufficient data to run analysis and prediction.")
 
 # Display \"Summary for Today\" section after the button and prediction results
-st.subheader("Summary for Today:")
-# Use latest_day_data from session state for displaying the summary
-if 'latest_day_data' in st.session_state and not st.session_state['latest_day_data'].empty:
-    latest_day_data_for_display = st.session_state['latest_day_data']
+# Clarify label to indicate it's the latest available data from the source
+st.subheader("Summary for Last Available Trading Day:") # MODIFIED LABEL HERE
+# Use latest_day_data from the processed data (which comes from the updated local file)
+if not latest_day_data.empty:
+    latest_day_data_for_display = latest_day_data
 
     # Calculate and format the summary data points
-    ldcp = latest_day_data_for_display['Close_Lag1'].iloc[0] if 'Close_Lag1' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Close_Lag1'].iloc[0]) else "N/A"
-    current_price = latest_day_data_for_display['Close'].iloc[0] if 'Close' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Close'].iloc[0]) else "N/A"
+    # Check if required columns exist before accessing them
+    ldcp = latest_day_data_for_display['Close_Lag1'].iloc[0] if 'Close_Lag1' in latest_day_data_for_display.columns and not latest_day_data_for_display['Close_Lag1'].empty and not pd.isna(latest_day_data_for_display['Close_Lag1'].iloc[0]) else "N/A"
+    current_price = latest_day_data_for_display['Close'].iloc[0] if 'Close' in latest_day_data_for_display.columns and not latest_day_data_for_display['Close'].empty and not pd.isna(latest_day_data_for_display['Close'].iloc[0]) else "N/A"
     change = current_price - ldcp if isinstance(current_price, (int, float)) and isinstance(ldcp, (int, float)) else "N/A"
-    volume = latest_day_data_for_display['Volume'].iloc[0] if 'Volume' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Volume'].iloc[0]) else "N/A"
-    latest_day_open = latest_day_data_for_display['Open'].iloc[0] if 'Open' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Open'].iloc[0]) else "N/A"
-    latest_day_high = latest_day_data_for_display['High'].iloc[0] if 'High' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['High'].iloc[0]) else "N/A"
-    latest_day_low = latest_day_data_for_display['Low'].iloc[0] if 'Low' in latest_day_data_for_display.columns and not pd.isna(latest_day_data_for_display['Low'].iloc[0]) else "N/A"
+    volume = latest_day_data_for_display['Volume'].iloc[0] if 'Volume' in latest_day_data_for_display.columns and not latest_day_data_for_display['Volume'].empty and not pd.isna(latest_day_data_for_display['Volume'].iloc[0]) else "N/A"
+    latest_day_open = latest_day_data_for_display['Open'].iloc[0] if 'Open' in latest_day_data_for_display.columns and not latest_day_data_for_display['Open'].empty and not pd.isna(latest_day_data_for_display['Open'].iloc[0]) else "N/A"
+    latest_day_high = latest_day_data_for_display['High'].iloc[0] if 'High' in latest_day_data_for_display.columns and not latest_day_data_for_display['High'].empty and not pd.isna(latest_day_data_for_display['High'].iloc[0]) else "N/A"
+    latest_day_low = latest_day_data_for_display['Low'].iloc[0] if 'Low' in latest_day_data_for_display.columns and not latest_day_data_for_display['Low'].empty and not pd.isna(latest_day_data_for_display['Low'].iloc[0]) else "N/A"
+
 
     # Format numerical values to 2 decimal places, handle "N/A", return as strings for consistent type in DataFrame
     ldcp_str = f'{ldcp:.2f}' if isinstance(ldcp, (int, float)) else "N/A"
@@ -524,7 +578,7 @@ if 'latest_day_data' in st.session_state and not st.session_state['latest_day_da
           <td style="border: 1px solid #dddddd; padding: 8px;">{ldcp_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{open_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{high_str}</td>
-          <td style="border: 1px solid #dddddd; padding: 8px;">low_str</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">{low_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{current_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{change_str}</td>
           <td style="border: 1px solid #dddddd; padding: 8px;">{volume_str}</td>
@@ -541,19 +595,18 @@ else:
 
 # Display historical stock data and charts as the last section
 st.subheader("Historical Stock Data:")
-# Use the original raw_data for the chart and display
-if not raw_data.empty:
+# Use the combined local historical data for the chart and display
+if not raw_data.empty: # raw_data now holds the combined local historical data
     st.line_chart(raw_data['Close'])
     # Display historical data excluding the last day with specified columns, latest entries first
     # Remove time part from the index for display
     # Use historical_data_processed from session state for the table
-    if 'historical_data_processed' in st.session_state and not st.session_state['historical_data_processed'].empty:
-        historical_data_display = st.session_state['historical_data_processed'][['Open', 'High', 'Low', 'Close', 'Volume', 'MA_20', 'MA_50', 'RSI']].copy()
+    if not historical_data_processed.empty:
+        historical_data_display = historical_data_processed[['Open', 'High', 'Low', 'Close', 'Volume', 'MA_20', 'MA_50', 'RSI']].copy()
         historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
         # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values introduced by processing
         historical_data_display = historical_data_display.apply(pd.to_numeric, errors='coerce')
-        # Display historical data using st.dataframe - keeping this as is for now, as the HTML approach for large tables can be complex
-        # and the user's main concern is the other smaller tables. We can revisit if this historical table also has issues.
+        # Display historical data using st.dataframe with use_container_width, sorting by date descending and setting height
         st.dataframe(historical_data_display.applymap('{:.2f}'.format).sort_index(ascending=False), use_container_width=True, height=300)
     else:
          st.write("No sufficient historical stock data available for the table after processing.")
@@ -613,7 +666,7 @@ if not historical_predictions_df.empty:
     if display_columns:
         historical_predictions_display = historical_predictions_display[display_columns]
     else:
-        st.warning("Could not find required columns for historical predictions display after processing.")
+        st.warning("Could not find required columns for historical predictions display after processing.\")",
         historical_predictions_display = pd.DataFrame() # Ensure it's an empty DataFrame if columns are missing
 
 
