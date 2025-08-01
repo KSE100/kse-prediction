@@ -300,7 +300,7 @@ def load_predictions():
                 # st.write(f"Loaded empty predictions file from {PREDICTIONS_FILE}. Starting with empty DataFrame.") # Suppressed
                 return empty_predictions_df # Return the correctly structured empty DataFrame
             else:
-                 # st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}\") # Suppressed
+                 # st.write(f"Loaded {len(predictions_df)} historical predictions from {PREDICTIONS_FILE}") # Suppressed
                  return predictions_df
 
         except Exception as e:
@@ -321,7 +321,7 @@ def load_predictions():
         # Create an empty DataFrame with the expected structure and DatetimeIndex
         try:
             empty_predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label=index_column_name)
-            # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}\") # Suppressed
+            # st.write(f"Created a new empty predictions file at {PREDICTIONS_FILE}") # Suppressed
         except Exception as save_e:
              st.error(f"Could not save a new empty predictions file to {PREDICTIONS_FILE}: {save_e}")
 
@@ -369,7 +369,8 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
-                st.write(f"Prediction for {prediction_date.date()} stored.\") # Keep this message as it's an action confirmation
+                # Corrected the f-string syntax
+                st.write(f"Prediction for {prediction_date.date()} stored.") # Keep this message as it's an action confirmation
             except Exception as e:
                  st.error(f"Could not save prediction to {PREDICTIONS_FILE}: {e}")
 
@@ -422,7 +423,7 @@ def update_actual_outcomes(historical_data_processed):
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
-                # st.write(f"Updated {updated_count} historical prediction outcomes.\") # Suppressed
+                # st.write(f"Updated {updated_count} historical prediction outcomes.") # Suppressed
             except Exception as e:
                 st.error(f"Could not save updated predictions to {PREDICTIONS_FILE}: {e}")
 
@@ -609,7 +610,8 @@ if not raw_data.empty: # raw_data now holds the combined local historical data
     # Display historical data with specified columns, latest entries first
     # Use raw_data for the table to ensure the latest day is included
     if not raw_data.empty:
-        historical_data_display = raw_data[['Open', 'High', 'Low', 'Close', 'Volume']].copy() # Display basic historical data
+        # Display historical data with specified columns, excluding technical indicators for simplicity and to avoid potential NaN issues on the latest day
+        historical_data_display = raw_data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
         historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
         # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values
         historical_data_display = historical_data_display.apply(pd.to_numeric, errors='coerce')
