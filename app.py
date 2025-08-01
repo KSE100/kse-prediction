@@ -369,7 +369,7 @@ def store_prediction(prediction_date, predicted_direction, confidence_score):
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
-                st.write(f"Prediction for {prediction_date.date()} stored.") # Keep this message as it's an action confirmation
+                st.write(f"Prediction for {prediction_date.date()} stored.\") # Keep this message as it's an action confirmation
             except Exception as e:
                  st.error(f"Could not save prediction to {PREDICTIONS_FILE}: {e}")
 
@@ -422,7 +422,7 @@ def update_actual_outcomes(historical_data_processed):
 
                 # Save with index=True to ensure the 'Date' index is written as a column
                 predictions_df.to_csv(PREDICTIONS_FILE, index=True, index_label='Date')
-                # st.write(f"Updated {updated_count} historical prediction outcomes.") # Suppressed
+                # st.write(f"Updated {updated_count} historical prediction outcomes.\") # Suppressed
             except Exception as e:
                 st.error(f"Could not save updated predictions to {PREDICTIONS_FILE}: {e}")
 
@@ -480,6 +480,11 @@ if st.button("Run Analysis and Get Prediction"):
             if predicted_direction_tomorrow is not None:
                 # The prediction date is the day AFTER the latest data point
                 predicted_date = date_of_latest_data + timedelta(days=1)
+
+                # Adjust prediction date to skip weekends
+                while predicted_date.weekday() >= 5: # Monday is 0, Sunday is 6
+                     predicted_date += timedelta(days=1)
+
 
                 # --- Display prediction for the NEXT trading day using HTML table in markdown ---
                 # Format the date for the title
@@ -541,7 +546,10 @@ if not latest_day_data.empty:
 
     # Calculate and format the summary data points
     # Check if required columns exist before accessing them
-    ldcp = latest_day_data_for_display['Close_Lag1'].iloc[0] if 'Close_Lag1' in latest_day_data_for_display.columns and not latest_day_data_for_display['Close_Lag1'].empty and not pd.isna(latest_day_data_for_display['Close_Lag1'].iloc[0]) else "N/A"
+    # Corrected LDCP calculation to use the 'Close' value from the second to last row of raw_data
+    # Ensure raw_data has at least two rows before accessing index -2
+    ldcp = raw_data['Close'].iloc[-2] if len(raw_data) >= 2 and 'Close' in raw_data.columns and not pd.isna(raw_data['Close'].iloc[-2]) else "N/A"
+
     current_price = latest_day_data_for_display['Close'].iloc[0] if 'Close' in latest_day_data_for_display.columns and not latest_day_data_for_display['Close'].empty and not pd.isna(latest_day_data_for_display['Close'].iloc[0]) else "N/A"
     change = current_price - ldcp if isinstance(current_price, (int, float)) and isinstance(ldcp, (int, float)) else "N/A"
     volume = latest_day_data_for_display['Volume'].iloc[0] if 'Volume' in latest_day_data_for_display.columns and not latest_day_data_for_display['Volume'].empty and not pd.isna(latest_day_data_for_display['Volume'].iloc[0]) else "N/A"
@@ -598,15 +606,14 @@ st.subheader("Historical Stock Data:")
 # Use the combined local historical data for the chart and display
 if not raw_data.empty: # raw_data now holds the combined local historical data
     st.line_chart(raw_data['Close'])
-    # Display historical data excluding the last day with specified columns, latest entries first
-    # Remove time part from the index for display
-    # Use historical_data_processed from session state for the table
-    if not historical_data_processed.empty:
-        historical_data_display = historical_data_processed[['Open', 'High', 'Low', 'Close', 'Volume', 'MA_20', 'MA_50', 'RSI']].copy()
+    # Display historical data with specified columns, latest entries first
+    # Use raw_data for the table to ensure the latest day is included
+    if not raw_data.empty:
+        historical_data_display = raw_data[['Open', 'High', 'Low', 'Close', 'Volume']].copy() # Display basic historical data
         historical_data_display.index = historical_data_display.index.date # Convert index to date objects for display
-        # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values introduced by processing
+        # Ensure columns are numeric for formatting, coerce errors to handle potential non-numeric values
         historical_data_display = historical_data_display.apply(pd.to_numeric, errors='coerce')
-        # Display historical data using st.dataframe with use_container_width, sorting by date descending and setting height
+        # Display historical data using st.dataframe with use_container_width and height
         st.dataframe(historical_data_display.applymap('{:.2f}'.format).sort_index(ascending=False), use_container_width=True, height=300)
     else:
          st.write("No sufficient historical stock data available for the table after processing.")
